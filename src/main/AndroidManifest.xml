@@ -19,8 +19,8 @@
     xmlns:tools="http://schemas.android.com/tools"
           package="com.afwsamples.testdpc"
           tools:ignore="MissingClass"
-           android:versionCode="9006"
-           android:versionName="9.0.6">
+           android:versionCode="9007"
+           android:versionName="9.0.7">
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"/>
 
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
@@ -92,12 +92,12 @@
         </intent-filter>
       </activity>
 
-        <activity
+        <!-- <activity
                 android:name=".SetupManagementActivity"
                 android:theme="@style/SudThemeGlifV3.Light"
                 android:label="@string/setup_app_name"
                 android:taskAffinity="">
-        </activity>
+        </activity> -->
 
         <activity-alias
                 android:name=".SetupManagementLaunchActivity"

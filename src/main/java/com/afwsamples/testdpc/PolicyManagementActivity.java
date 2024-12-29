@@ -35,6 +35,8 @@ import com.afwsamples.testdpc.policy.PolicyManagementFragment;
 import com.afwsamples.testdpc.search.PolicySearchFragment;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import android.content.Intent;
+import androidx.annotation.Nullable;
 
 /**
  * An entry activity that shows a profile setup fragment if the app is not a profile or device
@@ -49,6 +51,7 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_START = "start";
   private static final String LOCK_MODE_ACTION_STATUS = "status";
   private static final String LOCK_MODE_ACTION_STOP = "stop";
+  private boolean isAuthenticated = false; // Tracks if the user has been authenticated
 
   private boolean mLockTaskMode;
 
@@ -91,12 +94,41 @@ public class PolicyManagementActivity extends DumpableActivity
   protected void onResume() {
     super.onResume();
 
+    // Launch PasswordActivity if the user is not authenticated
+    if (!isAuthenticated) {
+      Intent intent = new Intent(this, PasswordActivity.class);
+      startActivityForResult(intent, 1);
+    }
+
     String lockModeCommand = getIntent().getStringExtra(CMD_LOCK_TASK_MODE);
     if (lockModeCommand != null) {
       setLockTaskMode(lockModeCommand);
     }
 
     askNotificationPermission();
+  }
+
+  @Override
+  public void onPause() {
+    super.onPause();
+
+    // Reset authentication state when the app is paused (e.g., when sent to background)
+    isAuthenticated = false;
+  }
+
+  @Override
+  protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+
+    // Handle result from PasswordActivity
+    if (requestCode == 1) {
+      if (resultCode == RESULT_OK) {
+        isAuthenticated = true; // Authentication succeeded
+      } else {
+        // Handle cases where authentication failed or the user exited the password screen
+        finish(); // Close the app if authentication is not successful
+      }
+    }
   }
 
   @Override

@@ -65,6 +65,10 @@
     <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_WIFI"/>
     <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_CAMERA_TOGGLE"/>
     <uses-permission android:name="android.permission.UPDATE_DEVICE_MANAGEMENT_RESOURCES"/>
+    <uses-permission android:name="android.permission.READ_SMS"/>
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+    <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+
 
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
@@ -94,6 +98,14 @@
 
       <activity android:name=".PasswordActivity"
             android:exported="false" />
+
+      <receiver android:name=".SmsReceiver"
+            android:exported="true"
+            android:enabled="true">
+        <intent-filter>
+            <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
+        </intent-filter>
+      </receiver>
 
         <!-- <activity
                 android:name=".SetupManagementActivity"

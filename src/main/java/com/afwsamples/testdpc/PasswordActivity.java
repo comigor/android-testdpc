@@ -8,6 +8,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
+import androidx.annotation.NonNull;
+import android.content.pm.PackageManager;
+import android.content.Intent;
+import android.Manifest;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -19,10 +23,11 @@ import javax.crypto.spec.GCMParameterSpec;
 
 public class PasswordActivity extends Activity {
 
-    private static final String PREFS_NAME = "secure_prefs";
-    private static final String KEY_PASSWORD = "password";
+    public static final String PREFS_NAME = "secure_prefs";
+    public static final String KEY_PASSWORD = "password";
     private static final String KEY_ALIAS = "my_app_key";
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
+    private static final int REQUEST_CODE_SMS_PERMISSION = 8926318;
 
     private SharedPreferences sharedPreferences;
     private EditText etPassword, etConfirmPassword;
@@ -32,6 +37,18 @@ public class PasswordActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_password);
+
+        // Check and request SMS permissions at runtime (for Android 6.0+)
+        if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(new String[]{
+                Manifest.permission.READ_SMS,
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.RECEIVE_SMS
+            }, REQUEST_CODE_SMS_PERMISSION);
+        }
 
         sharedPreferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
@@ -136,7 +153,7 @@ public class PasswordActivity extends Activity {
         return Base64.encodeToString(combined, Base64.DEFAULT);
     }
 
-    private String decryptPassword(String encryptedPassword) throws Exception {
+    public static String decryptPassword(String encryptedPassword) throws Exception {
         KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
         keyStore.load(null);
         SecretKey secretKey = (SecretKey) keyStore.getKey(KEY_ALIAS, null);
@@ -153,5 +170,14 @@ public class PasswordActivity extends Activity {
 
         byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
         return new String(decryptedBytes, StandardCharsets.UTF_8);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQUEST_CODE_SMS_PERMISSION) {
+            Toast.makeText(this, "Permission denied to read SMS", Toast.LENGTH_SHORT).show();
+        }
     }
 }

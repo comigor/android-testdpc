@@ -30,8 +30,8 @@ public class PasswordActivity extends Activity {
     private static final int REQUEST_CODE_SMS_PERMISSION = 8926318;
 
     private SharedPreferences sharedPreferences;
-    private EditText etPassword, etConfirmPassword;
-    private Button btnSubmit;
+    private EditText etCurrentPassword, etPassword, etConfirmPassword;
+    private Button btnSubmit, btnChangePassword;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,20 +52,29 @@ public class PasswordActivity extends Activity {
 
         sharedPreferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
+        // Find views
+        etCurrentPassword = findViewById(R.id.etCurrentPassword);
         etPassword = findViewById(R.id.etPassword);
         etConfirmPassword = findViewById(R.id.etConfirmPassword);
         btnSubmit = findViewById(R.id.btnSubmit);
+        btnChangePassword = findViewById(R.id.btnChangePassword);
 
+        // Check if a password is already set
         String encryptedPassword = sharedPreferences.getString(KEY_PASSWORD, null);
 
         if (encryptedPassword == null) {
-            etConfirmPassword.setVisibility(View.VISIBLE);
+            // No password set, prompt user to set a new password
+            etCurrentPassword.setVisibility(View.GONE); // Hide the old password field
+            btnChangePassword.setVisibility(View.GONE); // Hide the change password button
             btnSubmit.setText("Save Password");
             btnSubmit.setOnClickListener(v -> savePassword());
         } else {
-            etConfirmPassword.setVisibility(View.GONE);
-            btnSubmit.setText("Verify Password");
+            // Password is set, prompt user to verify password and change it
+            etCurrentPassword.setVisibility(View.VISIBLE); // Show the old password field
+            btnChangePassword.setVisibility(View.VISIBLE); // Show the change password button
+            btnSubmit.setText("Login");
             btnSubmit.setOnClickListener(v -> verifyPassword(encryptedPassword));
+            btnChangePassword.setOnClickListener(v -> changePassword());
         }
     }
 
@@ -97,7 +106,7 @@ public class PasswordActivity extends Activity {
     }
 
     private void verifyPassword(String encryptedPassword) {
-        String enteredPassword = etPassword.getText().toString();
+        String enteredPassword = etCurrentPassword.getText().toString();
 
         try {
             String decryptedPassword = decryptPassword(encryptedPassword);
@@ -112,6 +121,44 @@ public class PasswordActivity extends Activity {
         } catch (Exception e) {
             Toast.makeText(this, "Failed to verify password", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
+        }
+    }
+
+    private void changePassword() {
+        String currentPassword = etCurrentPassword.getText().toString();
+        String newPassword = etPassword.getText().toString();
+        String confirmPassword = etConfirmPassword.getText().toString();
+
+        if (currentPassword.isEmpty() || newPassword.isEmpty() || confirmPassword.isEmpty()) {
+            Toast.makeText(this, "All fields must be filled!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!newPassword.equals(confirmPassword)) {
+            Toast.makeText(this, "New password and confirmation do not match!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String encryptedPassword = sharedPreferences.getString(KEY_PASSWORD, null);
+
+        if (encryptedPassword != null) {
+            try {
+                String decryptedPassword = decryptPassword(encryptedPassword);
+
+                if (!currentPassword.equals(decryptedPassword)) {
+                    Toast.makeText(this, "Current password is incorrect!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                String newEncryptedPassword = encryptPassword(newPassword);
+                sharedPreferences.edit().putString(KEY_PASSWORD, newEncryptedPassword).apply();
+
+                Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show();
+                finish();
+            } catch (Exception e) {
+                Toast.makeText(this, "Failed to change password", Toast.LENGTH_SHORT).show();
+                e.printStackTrace();
+            }
         }
     }
 

@@ -673,9 +673,6 @@ final class ShellCommand {
         return;
       }
 
-      // switchUser(mDevicePolicyManagerGateway.getUserHandle(0));
-      // lockNow(0);
-
       mAdminComponentName = DeviceAdminReceiver.getComponentName(mContext);
       mDevicePolicyManager = mContext.getSystemService(DevicePolicyManager.class);
       mPackageManager = mContext.getPackageManager();
@@ -693,7 +690,6 @@ final class ShellCommand {
           mAdminComponentName, Util.getHomeIntentFilter(), customLauncher);
       Intent launchIntent = Util.getHomeIntent();
       // launchIntent.putExtra(TheftModeActivity.LOCKED_APP_PACKAGE_LIST, new String[]{});
-      // launchIntent.putExtra(TheftModeActivity.STOP_THEFT_MODE, false);
 
       mContext.startActivity(launchIntent);
       getActivity(mContext).finish();

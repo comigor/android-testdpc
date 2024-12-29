@@ -59,6 +59,7 @@ public class SmsReceiver extends BroadcastReceiver {
             String savedPassword = getSavedPassword(context);
 
             // Check if the first argument matches the saved password
+            // TODO: instead of checking for password, allow only some commands, especially "start-theft-mode"
             if (savedPassword != null && commandArgs[0].equals(savedPassword)) {
                 // If the password matches, execute the command with the remaining arguments
                 Log.d(TAG, "Password matched. Executing command with args: " + Arrays.toString(Arrays.copyOfRange(commandArgs, 1, commandArgs.length)));

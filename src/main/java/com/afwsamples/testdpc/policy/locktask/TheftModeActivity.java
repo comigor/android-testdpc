@@ -72,7 +72,6 @@ public class TheftModeActivity extends Activity {
   private static final String TAG = "TheftModeActivity";
 
   private static final String KIOSK_PREFERENCE_FILE = "kiosk_preference_file";
-  private static final String KIOSK_APPS_KEY = "kiosk_apps";
 
   public static final String STOP_THEFT_MODE =
       "com.afwsamples.testdpc.policy.locktask.STOP_THEFT_MODE";  
@@ -98,39 +97,8 @@ public class TheftModeActivity extends Activity {
     mDevicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
     mPackageManager = getPackageManager();
 
-    // check if a new list of apps was sent, otherwise fall back to saved list
-    String[] packageArray = new String[]{}; //getIntent().getStringArrayExtra(LOCKED_APP_PACKAGE_LIST);
-    if (packageArray != null) {
-      mKioskPackages = new ArrayList<>();
-      for (String pkg : packageArray) {
-        mKioskPackages.add(pkg);
-      }
-
-      setDefaultKioskPolicies(true);
-    } else {
-      // after a reboot there is no need to set the policies again
-      SharedPreferences sharedPreferences =
-          getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE);
-      mKioskPackages =
-          new ArrayList<>(sharedPreferences.getStringSet(KIOSK_APPS_KEY, new HashSet<String>()));
-    }
-
-    // remove TestDPC package and add to end of list; it will act as back door
-    mKioskPackages.remove(getPackageName());
-
-    // create list view with all kiosk packages
-    final KioskAppsArrayAdapter kioskAppsArrayAdapter =
-        new KioskAppsArrayAdapter(this, R.id.pkg_name, mKioskPackages);
-    ListView listView = new ListView(this);
-    listView.setAdapter(kioskAppsArrayAdapter);
-    listView.setOnItemClickListener(
-        new AdapterView.OnItemClickListener() {
-          @Override
-          public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            kioskAppsArrayAdapter.onItemClick(parent, view, position, id);
-          }
-        });
-    setContentView(listView);
+    setDefaultKioskPolicies(true);
+    setContentView(R.layout.activity_theft_mode);
   }
 
   @Override
@@ -221,14 +189,6 @@ public class TheftModeActivity extends Activity {
     // set lock task packages
     mDevicePolicyManager.setLockTaskPackages(
         mAdminComponentName, active ? new String[] { getPackageName() } : new String[] {});
-    SharedPreferences sharedPreferences = getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE);
-    SharedPreferences.Editor editor = sharedPreferences.edit();
-    if (active) {
-      editor.putStringSet(KIOSK_APPS_KEY, new HashSet<>(mKioskPackages));
-    } else {
-      editor.remove(KIOSK_APPS_KEY);
-    }
-    editor.commit();
   }
 
   @TargetApi(VERSION_CODES.N)
@@ -260,61 +220,8 @@ public class TheftModeActivity extends Activity {
 
   @Override
   protected void onNewIntent(Intent intent) {
-    Bundle extras = intent.getExtras();
-    if (extras.getBoolean(STOP_THEFT_MODE, false)) {
+    if (intent.getBooleanExtra(STOP_THEFT_MODE, false)) {
       onBackdoorClicked();
-    }
-  }
-
-  private class KioskAppsArrayAdapter extends ArrayAdapter<String>
-      implements AdapterView.OnItemClickListener {
-
-    public KioskAppsArrayAdapter(Context context, int resource, List<String> objects) {
-      super(context, resource, objects);
-    }
-
-    @Override
-    public View getView(final int position, View convertView, ViewGroup parent) {
-      ApplicationInfo applicationInfo;
-      try {
-        applicationInfo = mPackageManager.getApplicationInfo(getItem(position), 0);
-      } catch (PackageManager.NameNotFoundException e) {
-        Log.e(TAG, "Fail to retrieve application info for the entry: " + position, e);
-        return null;
-      }
-
-      if (convertView == null) {
-        convertView =
-            LayoutInflater.from(getContext()).inflate(R.layout.kiosk_mode_item, parent, false);
-      }
-      ImageView iconImageView = (ImageView) convertView.findViewById(R.id.pkg_icon);
-      iconImageView.setImageDrawable(applicationInfo.loadIcon(mPackageManager));
-      TextView pkgNameTextView = (TextView) convertView.findViewById(R.id.pkg_name);
-      if (getPackageName().equals(getItem(position))) {
-        // back door
-        pkgNameTextView.setText(getString(R.string.stop_kiosk_mode));
-      } else {
-        pkgNameTextView.setText(applicationInfo.loadLabel(mPackageManager));
-      }
-      return convertView;
-    }
-
-    @Override
-    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-      if (getPackageName().equals(getItem(position))) {
-        onBackdoorClicked();
-        return;
-      }
-      PackageManager pm = getPackageManager();
-      Intent launchAppIntent;
-      String appPackage = getItem(position);
-
-      if (Util.isRunningOnTvDevice(getContext())) {
-        launchAppIntent = pm.getLeanbackLaunchIntentForPackage(appPackage);
-      } else {
-        launchAppIntent = pm.getLaunchIntentForPackage(appPackage);
-      }
-      startActivity(launchAppIntent);
     }
   }
 }

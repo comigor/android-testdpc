@@ -163,6 +163,20 @@
             </intent-filter>
         </activity>
 
+        <activity
+                android:name=".policy.locktask.TheftModeActivity"
+                android:exported="true"
+                android:label="Celular roubado"
+                android:launchMode="singleInstance"
+                android:enabled="false"
+                android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.HOME"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+
         <activity android:name=".provision.GetProvisioningModeActivity"
                 android:exported="true"
                 android:permission="android.permission.BIND_DEVICE_ADMIN"

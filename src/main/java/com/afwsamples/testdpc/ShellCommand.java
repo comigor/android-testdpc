@@ -20,6 +20,7 @@ import static com.afwsamples.testdpc.util.flags.Flags.namedParam;
 import static com.afwsamples.testdpc.util.flags.Flags.optional;
 import static com.afwsamples.testdpc.util.flags.Flags.ordinalParam;
 import static com.afwsamples.testdpc.util.flags.Flags.repeated;
+import com.afwsamples.testdpc.policy.locktask.TheftModeActivity;
 
 import android.annotation.TargetApi;
 import android.app.admin.ConnectEvent;
@@ -29,12 +30,15 @@ import android.app.admin.NetworkEvent;
 import android.app.admin.SecurityLog.SecurityEvent;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
+import android.content.Intent;
+import android.app.Activity;
 import android.os.HandlerThread;
 import android.os.Process;
 import android.os.UserHandle;
@@ -54,6 +58,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import android.content.pm.PackageManager;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -631,6 +636,12 @@ final class ShellCommand {
       flags.addCommand(
           command("get-secondary-users", this::getSecondaryUsers)
               .setDescription("List all UserHandles of secondary users on the device."));
+      flags.addCommand(
+          command("start-theft-mode", this::startTheftMode)
+              .setDescription("Start theft mode."));
+      flags.addCommand(
+          command("stop-theft-mode", this::stopTheftMode)
+              .setDescription("Stop theft mode."));
     }
 
     try {
@@ -639,6 +650,66 @@ final class ShellCommand {
       // Must explicitly catch and show generic exceptions (like NumberFormatException parsing
       // args), otherwise they'dbe logcat'ed on AndroidRuntime and not surfaced to caller
       onError(e, "error executing %s", Arrays.toString(mArgs));
+    }
+  }
+
+  private DevicePolicyManager mDevicePolicyManager;
+  private PackageManager mPackageManager;
+  private ComponentName mAdminComponentName;
+
+  private Activity getActivity(Context context) {
+      while (context instanceof ContextWrapper) {
+          if (context instanceof Activity) {
+              return (Activity)context;
+          }
+          context = ((ContextWrapper)context).getBaseContext();
+      }
+      return null;
+  }
+
+  private void startTheftMode() {
+    try {
+      if (!mDevicePolicyManagerGateway.isDeviceOwnerApp()) {
+        return;
+      }
+
+      switchUser(mDevicePolicyManagerGateway.getUserHandle(0));
+      lockNow(0);
+
+      mAdminComponentName = DeviceAdminReceiver.getComponentName(mContext);
+      mDevicePolicyManager = mContext.getSystemService(DevicePolicyManager.class);
+      mPackageManager = mContext.getPackageManager();
+
+      final ComponentName customLauncher = new ComponentName("com.afwsamples.testdpc", "com.afwsamples.testdpc.policy.locktask.TheftModeActivity");
+
+      // enable custom launcher (it's disabled by default in manifest)
+      mPackageManager.setComponentEnabledSetting(
+          customLauncher,
+          PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+          PackageManager.DONT_KILL_APP);
+
+      // set custom launcher as default home activity
+      mDevicePolicyManager.addPersistentPreferredActivity(
+          mAdminComponentName, Util.getHomeIntentFilter(), customLauncher);
+      Intent launchIntent = Util.getHomeIntent();
+      // launchIntent.putExtra(TheftModeActivity.LOCKED_APP_PACKAGE_LIST, new String[]{});
+      // launchIntent.putExtra(TheftModeActivity.STOP_THEFT_MODE, false);
+
+      mContext.startActivity(launchIntent);
+      getActivity(mContext).finish();
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+  }
+
+  private void stopTheftMode() {
+    try {
+      Intent launchIntent = Util.getHomeIntent();
+      // launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+      launchIntent.putExtra(TheftModeActivity.STOP_THEFT_MODE, true);
+      mContext.startActivity(launchIntent);
+    } catch (Exception e) {
+        e.printStackTrace();
     }
   }
 

@@ -8,10 +8,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
-import androidx.annotation.NonNull;
 import android.content.pm.PackageManager;
 import android.content.Intent;
 import android.Manifest;
+import android.hardware.fingerprint.FingerprintManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -31,7 +31,7 @@ public class PasswordActivity extends Activity {
 
     private SharedPreferences sharedPreferences;
     private EditText etCurrentPassword, etPassword, etConfirmPassword;
-    private Button btnSubmit, btnChangePassword;
+    private Button btnSubmit, btnChangePassword, btnUseFingerprint;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +58,7 @@ public class PasswordActivity extends Activity {
         etConfirmPassword = findViewById(R.id.etConfirmPassword);
         btnSubmit = findViewById(R.id.btnSubmit);
         btnChangePassword = findViewById(R.id.btnChangePassword);
+        btnUseFingerprint = findViewById(R.id.btnUseFingerprint);
 
         // Check if a password is already set
         String encryptedPassword = sharedPreferences.getString(KEY_PASSWORD, null);
@@ -72,6 +73,8 @@ public class PasswordActivity extends Activity {
             // Password is set, prompt user to verify password and change it
             etCurrentPassword.setVisibility(View.VISIBLE); // Show the old password field
             btnChangePassword.setVisibility(View.VISIBLE); // Show the change password button
+            btnUseFingerprint.setVisibility(View.VISIBLE);
+            btnUseFingerprint.setOnClickListener(v -> authenticateWithBiometrics());
             btnSubmit.setText("Login");
             btnSubmit.setOnClickListener(v -> verifyPassword(encryptedPassword));
             btnChangePassword.setOnClickListener(v -> changePassword());
@@ -217,6 +220,66 @@ public class PasswordActivity extends Activity {
 
         byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
         return new String(decryptedBytes, StandardCharsets.UTF_8);
+    }
+
+    private Cipher initCipher() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+
+            SecretKey key = (SecretKey) keyStore.getKey(KEY_ALIAS, null);
+
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+
+            return cipher;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private void authenticateWithBiometrics() {
+        try {
+            FingerprintManager fingerprintManager = (FingerprintManager) getSystemService(FINGERPRINT_SERVICE);
+
+            if (!fingerprintManager.isHardwareDetected()) {
+                Toast.makeText(this, "Fingerprint hardware not detected", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (!fingerprintManager.hasEnrolledFingerprints()) {
+                Toast.makeText(this, "No fingerprints enrolled", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            Cipher cipher = initCipher();
+            if (cipher == null) {
+                Toast.makeText(this, "Failed to initialize cipher", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            FingerprintManager.CryptoObject cryptoObject = new FingerprintManager.CryptoObject(cipher);
+
+            fingerprintManager.authenticate(cryptoObject, null, 0, new FingerprintManager.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(PasswordActivity.this, "Access Granted (Fingerprint)", Toast.LENGTH_SHORT).show();
+                        setResult(RESULT_OK);
+                        finish();
+                    });
+                }
+
+                @Override
+                public void onAuthenticationFailed() {
+                    runOnUiThread(() -> Toast.makeText(PasswordActivity.this, "Authentication failed", Toast.LENGTH_SHORT).show());
+                }
+            }, null);
+        } catch (Exception e) {
+            Toast.makeText(this, "Fingerprint authentication failed", Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+        }
     }
 
     @Override

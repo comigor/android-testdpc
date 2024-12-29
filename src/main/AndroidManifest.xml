@@ -68,10 +68,11 @@
     <uses-permission android:name="android.permission.READ_SMS"/>
     <uses-permission android:name="android.permission.SEND_SMS"/>
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
-
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
 
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false"/>
 
     <application
             android:allowBackup="true"

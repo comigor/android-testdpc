@@ -22,6 +22,7 @@ import android.os.Build.VERSION_CODES;
 import androidx.annotation.RequiresApi;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import android.content.Context;
 
 /**
  * To allow DPC process to be persistent and foreground.
@@ -51,7 +52,7 @@ public class DeviceAdminService extends android.app.admin.DeviceAdminService {
     intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
     intentFilter.addDataScheme("package");
     mPackageChangedReceiver = new PackageMonitorReceiver();
-    getApplicationContext().registerReceiver(mPackageChangedReceiver, intentFilter);
+    getApplicationContext().registerReceiver(mPackageChangedReceiver, intentFilter, Context.RECEIVER_EXPORTED);
   }
 
   private void unregisterPackageChangesReceiver() {

@@ -95,9 +95,9 @@ public class EnableCosuActivity extends Activity {
     mDownloadManager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
 
     // register the download and install receiver
-    registerReceiver(mDownloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+    registerReceiver(mDownloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED);
     registerReceiver(
-        mInstallReceiver, new IntentFilter(PackageInstallationUtils.ACTION_INSTALL_COMPLETE));
+        mInstallReceiver, new IntentFilter(PackageInstallationUtils.ACTION_INSTALL_COMPLETE), Context.RECEIVER_EXPORTED);
 
     // download the config file
     String configDownloadLocation = (String) persistableBundle.get(BUNDLE_KEY_COSU_CONFIG);

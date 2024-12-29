@@ -673,8 +673,8 @@ final class ShellCommand {
         return;
       }
 
-      switchUser(mDevicePolicyManagerGateway.getUserHandle(0));
-      lockNow(0);
+      // switchUser(mDevicePolicyManagerGateway.getUserHandle(0));
+      // lockNow(0);
 
       mAdminComponentName = DeviceAdminReceiver.getComponentName(mContext);
       mDevicePolicyManager = mContext.getSystemService(DevicePolicyManager.class);
@@ -705,7 +705,7 @@ final class ShellCommand {
   private void stopTheftMode() {
     try {
       Intent launchIntent = Util.getHomeIntent();
-      // launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+      launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
       launchIntent.putExtra(TheftModeActivity.STOP_THEFT_MODE, true);
       mContext.startActivity(launchIntent);
     } catch (Exception e) {

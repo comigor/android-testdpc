@@ -100,7 +100,7 @@ public class ResetPasswordService extends Service {
     IntentFilter filter = new IntentFilter();
     filter.addAction(ACTION_USER_UNLOCKED);
     filter.addAction(ACTION_RESET_PASSWORD);
-    registerReceiver(receiver, filter);
+    registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
 
     showNotification();
     return START_REDELIVER_INTENT;

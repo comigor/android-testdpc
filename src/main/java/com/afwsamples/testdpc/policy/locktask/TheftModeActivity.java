@@ -135,11 +135,8 @@ public class TheftModeActivity extends Activity {
 
   @Override
   public boolean onKeyDown(int keyCode, KeyEvent event) {
-      // Disable back, home, and recent apps buttons
-      if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_APP_SWITCH || keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-          return true;
-      }
-      return super.onKeyDown(keyCode, event);
+      // Disable all keys
+      return true;
   }
 
   @Override

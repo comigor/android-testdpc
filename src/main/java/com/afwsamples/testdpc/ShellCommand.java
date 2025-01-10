@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
 /**
  * Provides a CLI (command-line interface) to TestDPC through {@code dumpsys}.
  *
- * <p>Usage: {@code adb shell dumpsys activity service --user USER_ID com.afwsamples.testdpc CMD}.
+ * <p>Usage: {@code adb shell dumpsys activity --user USER_ID service com.afwsamples.testdpc CMD}.
  */
 final class ShellCommand {
   private static final String TAG = "TestDPCShellCommand";
@@ -252,6 +252,13 @@ final class ShellCommand {
                 ordinalParam(String.class, "restriction"),
                 ordinalParam(boolean.class, "enabled"))
             .setDescription("Set the given user restriction."));
+    flags.addCommand(
+        command(
+                "set-user-restriction-on-parent",
+                this::setUserRestrictionOnParent,
+                ordinalParam(String.class, "restriction"),
+                ordinalParam(boolean.class, "enabled"))
+            .setDescription("Set the given user restriction on the parent user."));
     flags.addCommand(
         command("lock-now", this::lockNow, optional(namedParam(int.class, "flags")))
             .setDescription("Lock the device (now! :-)."));
@@ -854,6 +861,19 @@ final class ShellCommand {
         enabled,
         (v) -> onSuccess("User restriction '%s' set to %b", userRestriction, enabled),
         (e) -> onError(e, "Error setting user restriction '%s' to %b", userRestriction, enabled));
+  }
+
+  private void setUserRestrictionOnParent(String userRestriction, boolean enabled) {
+    Log.i(TAG, "setUserRestrictionOnParent(" + userRestriction + ", " + enabled + ")");
+    DevicePolicyManagerGateway parentDpmGateway =
+        DevicePolicyManagerGatewayImpl.forParentProfile(mContext);
+    parentDpmGateway.setUserRestriction(
+        userRestriction,
+        enabled,
+        (v) -> onSuccess("User restriction '%s' set to %b", userRestriction, enabled),
+        (e) ->
+            onError(
+                e, "Error setting parent user restriction '%s' to %b", userRestriction, enabled));
   }
 
   private void lockNow(Integer flags) {

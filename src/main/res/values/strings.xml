@@ -95,6 +95,7 @@
     <!-- Reasons for disabling preferences -->
     <string name="requires_android_api_level">Requires API level
         <xliff:g id="api level">%d</xliff:g></string>
+    <string name="requires_android_v">Requires API level 35</string>
     <string name="requires_preview_release">Requires the Android P preview release</string>
     <string name="requires">Requires\u0020</string>
     <string name="requires_delimiter">,\u0020</string>
@@ -134,22 +135,15 @@
     <string name="set_auto_time_required">Set auto (network) time required</string>
     <string name="set_auto_time">Set auto (network) time</string>
     <string name="set_auto_time_zone">Set auto (network) time zone</string>
-    <string name="wipe_data">Wipe data</string>
-    <string name="wipe_data_title">Wipe data?</string>
-    <string name="wipe_data_confirmation">Are you sure you want to wipe the data?</string>
-    <string name="wipe_data_include">Also wipe:</string>
-    <string name="external_storage">External storage</string>
-    <string name="reset_protection_data">Factory reset protection</string>
     <string name="remove_device_owner">Remove this device owner</string>
     <string name="remove_device_owner_title">Remove device owner?</string>
     <string name="remove_device_owner_confirmation">Policies and restrictions will continue to be
         active and may require a factory reset to clear.</string>
     <string name="device_owner_removed">This app is no longer a device owner.</string>
-    <!-- Corporate-owned work profile falls under device owner management, for convenience. -->
-    <string name="factory_reset_org_owned">Factory reset Org-Owned Work Profile device</string>
     <string name="set_factory_reset_protection_policy">Set factory reset protection policy</string>
     <string name="factory_reset_protection_policy">Factory reset protection policy</string>
-    <string name="factory_reset_protection_policy_accounts">Accounts</string>
+    <string name="factory_reset_protection_policy_accounts">Account IDs</string>
+    <string name="factory_reset_protection_policy_account_id_msg">Account IDs are exactly 21 decimal digits</string>
     <string name="factory_reset_protection_policy_enabled">Enabled</string>
     <string-array name="factory_reset_protection_policy_enabled_choices">
         <item>Disabled</item>
@@ -157,6 +151,18 @@
     </string-array>
     <string name="cleared_factory_reset_protection_policy">Cleared factory reset protection policy</string>
     <string name="saved_factory_reset_protection_policy">Saved factory reset protection policy</string>
+
+    <!-- Strings for data wipe section-->
+    <string name="data_wipe_section">Data wipe</string>
+    <string name="remove_managed_profile">Remove work profile</string>
+    <string name="remove_managed_profile_title">Remove work profile?</string>
+    <string name="wipe_data_confirmation">Are you sure you want to wipe the data?</string>
+    <string name="wipe_data_include">Also wipe:</string>
+    <string name="external_storage">External storage</string>
+    <string name="reset_protection_data">Factory reset protection</string>
+    <string name="factory_reset_device">Factory reset device</string>
+    <string name="factory_reset_device_title">Factory reset device?</string>
+
 
     <!-- Strings for device reboot -->
     <string name="reboot">Reboot device</string>
@@ -202,8 +208,6 @@
 
     <!-- Stings for work profile management -->
     <string name="profile_management_title">Work profile management</string>
-    <string name="remove_managed_profile">Remove work profile</string>
-    <string name="removing_managed_profile">Removing work profile</string>
     <string name="lock_parent_key">Lock parent</string>
     <string name="evict_ce_key">Evict CE key</string>
 
@@ -228,6 +232,9 @@
     <string name="disable_bluetooth_contact_sharing">Disable bluetooth contact sharing</string>
     <string name="disable_cross_profile_caller_id">Disable cross-profile caller ID</string>
     <string name="disable_cross_profile_contacts_search">Disable cross-profile contacts search</string>
+
+    <!-- Strings for telephony -->
+    <string name="telephony_title">Telephony</string>
 
     <!-- Strings for APN -->
     <string name="override_apn_title">Override APN management</string>
@@ -254,6 +261,16 @@
     <string name="apn_network_bitmask">Network type bitmask</string>
     <string name="apn_mvno_type">MVNO type</string>
     <string name="apn_numeric_hint">Numeric=MCC+MNC</string>
+
+    <!-- Strings for eSIM controls-->
+    <string name="esim_management">eSIM Management</string>
+    <string name="manage_esim"> Manage eSIM</string>
+    <string name="download_esim">Download eSIM</string>
+    <string name="esim_activation_code">Enter activation code</string>
+    <string name="delete_esim_dialog_title">Enter subId of the eSIM to delete</string>
+    <string name="get_managed_esim_dialog_title">List of managed eSIMs subId</string>
+    <string name="delete_esim">Delete eSIM</string>
+    <string name="get_managed_esim">Get managed eSIM</string>
 
     <string name="apn_entry_name_cannot_be_empty">Entry name cannot be empty</string>
     <string name="apn_name_cannot_be_empty">APN name cannot be empty</string>
@@ -345,12 +362,15 @@
     <string name="create_eap_tls_wifi_configuration">Create EAP-TLS WI-FI configuration</string>
     <string name="wifi_identity">Identity (if any)</string>
     <string name="wifi_client_cert_password">Client certificate password (if any)</string>
+    <string name="wifi_domain">Domain suffix match</string>
+    <string name="wifi_alt_subject_match">Alt subject match</string>
     <string name="import_ca_certificate">Import CA certificate</string>
     <string name="import_user_certificate">Import user certificate</string>
     <string name="select_user_certificate">Select user certificate</string>
     <string name="selected_certificate">Selected certificate: <xliff:g example="server certificate" id="certificate_alias">%1$s</xliff:g></string>
     <string name="selected_keychain_certificate">Selected KeyChain alias: <xliff:g example="somealias" id="certificate_alias">%1$s</xliff:g></string>
     <string name="selected_certificate_none">No certificate selected</string>
+    <string name="error_domain_and_alt_subject_match_both_unset">Either domain or alt subject match must be set</string>
     <string name="error_missing_ssid">Missing SSID</string>
     <string name="error_missing_ca_cert">Missing CA cert</string>
     <string name="error_missing_client_cert">Missing client cert or invalid cert password</string>
@@ -531,6 +551,9 @@
     <string name="disallow_config_default_apps">Disallow config default apps</string>
     <string name="disallow_config_locale">Disallow config locale</string>
     <string name="disallow_ultra_wideband_radio">Disallow ultra wideband radio</string>
+    <string name="disallow_assist_content">Disallow assist content</string>
+    <string name="disallow_sim_globally">Disallow sim globally</string>
+    <string name="disallow_add_private_profile">Disallow add private profile</string>
     <string name="user_restriction_error_msg">Operation not allowed</string>
 
     <!-- Strings for select app -->

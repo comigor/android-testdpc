@@ -77,10 +77,11 @@ android_binary(
     dexopts = [
         "--force-jumbo",
     ],
-    manifest = MANIFEST_DEBUG,
+    manifest = MANIFEST,
     multidex = "native",
     deps = [
         ":testdpc_lib",
+        ":testdpc_lib_debug",
     ],
 )
 
@@ -99,6 +100,12 @@ android_library(
         "@setupdesign//:setupdesign",
         "@setupcompat//:setupcompat",
     ],
+)
+
+android_library(
+    name = "testdpc_lib_debug",
+    custom_package = PACKAGE,
+    manifest = MANIFEST_DEBUG,
 )
 
 android_library(

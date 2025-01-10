@@ -390,7 +390,8 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   private static final String UNSUSPEND_APPS_KEY = "unsuspend_apps";
   private static final String CLEAR_APP_DATA_KEY = "clear_app_data";
   private static final String KEEP_UNINSTALLED_PACKAGES = "keep_uninstalled_packages";
-  private static final String WIPE_DATA_KEY = "wipe_data";
+  private static final String REMOVE_MANAGED_PROFILE_KEY = "remove_managed_profile";
+  private static final String FACTORY_RESET_DEVICE_KEY = "factory_reset_device";
   private static final String CREATE_WIFI_CONFIGURATION_KEY = "create_wifi_configuration";
   private static final String CREATE_EAP_TLS_WIFI_CONFIGURATION_KEY =
       "create_eap_tls_wifi_configuration";
@@ -425,7 +426,6 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   private static final String MANAGE_OVERRIDE_APN_KEY = "manage_override_apn";
   private static final String MANAGED_SYSTEM_UPDATES_KEY = "managed_system_updates";
   private static final String SET_PRIVATE_DNS_MODE_KEY = "set_private_dns_mode";
-  private static final String FACTORY_RESET_ORG_OWNED_DEVICE = "factory_reset_org_owned_device";
   private static final String SET_FACTORY_RESET_PROTECTION_POLICY_KEY =
       "set_factory_reset_protection_policy";
   private static final String SET_LOCATION_ENABLED_KEY = "set_location_enabled";
@@ -450,6 +450,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
       "credential_manager_set_blocklist";
   private static final String CREDENTIAL_MANAGER_CLEAR_POLICY_KEY =
       "credential_manager_clear_policy";
+  private static final String MANAGE_ESIM_KEY = "manage_esim";
 
   private static final String BATTERY_PLUGGED_ANY =
       Integer.toString(
@@ -488,6 +489,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   }
 
   private DevicePolicyManager mDevicePolicyManager;
+  private DevicePolicyManager mParentDevicePolicyManager;
   private DevicePolicyManagerGateway mDevicePolicyManagerGateway;
   private PackageManager mPackageManager;
   private String mPackageName;
@@ -556,12 +558,17 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   private Uri mImageUri;
   private Uri mVideoUri;
   private boolean mIsProfileOwner;
+  private boolean mIsOrganizationOwnedProfileOwner;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     Context context = getActivity();
     mAdminComponentName = DeviceAdminReceiver.getComponentName(context);
     mDevicePolicyManager = context.getSystemService(DevicePolicyManager.class);
+    mParentDevicePolicyManager =
+        Util.SDK_INT >= VERSION_CODES.N && isManagedProfileOwner()
+            ? mDevicePolicyManager.getParentProfileInstance(mAdminComponentName)
+            : null;
     mUserManager = context.getSystemService(UserManager.class);
     mPackageManager = context.getPackageManager();
     mDevicePolicyManagerGateway =
@@ -572,6 +579,11 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
             context.getSystemService(LocationManager.class),
             mAdminComponentName);
     mIsProfileOwner = mDevicePolicyManagerGateway.isProfileOwnerApp();
+    mIsOrganizationOwnedProfileOwner =
+        Util.SDK_INT >= VERSION_CODES.R
+            && mIsProfileOwner
+            && mDevicePolicyManagerGateway.isOrganizationOwnedDeviceWithManagedProfile();
+
     mTelephonyManager = context.getSystemService(TelephonyManager.class);
     mAccountManager = AccountManager.get(context);
     mPackageName = context.getPackageName();
@@ -670,7 +682,8 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     mStayOnWhilePluggedInSwitchPreference =
         (SwitchPreference) findPreference(STAY_ON_WHILE_PLUGGED_IN);
     mStayOnWhilePluggedInSwitchPreference.setOnPreferenceChangeListener(this);
-    findPreference(WIPE_DATA_KEY).setOnPreferenceClickListener(this);
+    findPreference(REMOVE_MANAGED_PROFILE_KEY).setOnPreferenceClickListener(this);
+    findPreference(FACTORY_RESET_DEVICE_KEY).setOnPreferenceClickListener(this);
     findPreference(REMOVE_DEVICE_OWNER_KEY).setOnPreferenceClickListener(this);
     mEnableBackupServicePreference = (DpcSwitchPreference) findPreference(ENABLE_BACKUP_SERVICE);
     mEnableBackupServicePreference.setOnPreferenceChangeListener(this);
@@ -778,9 +791,14 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     findPreference(CROSS_PROFILE_APPS).setOnPreferenceClickListener(this);
     findPreference(CROSS_PROFILE_APPS_ALLOWLIST).setOnPreferenceClickListener(this);
 
+    ((DpcPreference) findPreference(SET_SCREEN_BRIGHTNESS_KEY))
+        .setCustomConstraint(this::validateBrightnessControlConstraint);
     findPreference(SET_SCREEN_BRIGHTNESS_KEY).setOnPreferenceClickListener(this);
     mAutoBrightnessPreference = (DpcSwitchPreference) findPreference(AUTO_BRIGHTNESS_KEY);
+    mAutoBrightnessPreference.setCustomConstraint(this::validateBrightnessControlConstraint);
     mAutoBrightnessPreference.setOnPreferenceChangeListener(this);
+    ((DpcPreference) findPreference(SET_SCREEN_OFF_TIMEOUT_KEY))
+        .setCustomConstraint(this::validateBrightnessControlConstraint);
     findPreference(SET_SCREEN_OFF_TIMEOUT_KEY).setOnPreferenceClickListener(this);
 
     findPreference(SET_TIME_KEY).setOnPreferenceClickListener(this);
@@ -793,7 +811,6 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
     findPreference(CROSS_PROFILE_CALENDAR_KEY).setOnPreferenceClickListener(this);
     findPreference(ENTERPRISE_SLICE_KEY).setOnPreferenceClickListener(this);
-    findPreference(FACTORY_RESET_ORG_OWNED_DEVICE).setOnPreferenceClickListener(this);
     findPreference(SET_FACTORY_RESET_PROTECTION_POLICY_KEY).setOnPreferenceClickListener(this);
     findPreference(SET_ORGANIZATION_ID_KEY).setOnPreferenceClickListener(this);
 
@@ -810,6 +827,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         .setOnPreferenceClickListener(this);
     findPreference(CREDENTIAL_MANAGER_SET_BLOCKLIST_KEY).setOnPreferenceClickListener(this);
     findPreference(CREDENTIAL_MANAGER_CLEAR_POLICY_KEY).setOnPreferenceClickListener(this);
+    findPreference(MANAGE_ESIM_KEY).setOnPreferenceClickListener(this);
 
     DpcPreference bindDeviceAdminPreference =
         (DpcPreference) findPreference(BIND_DEVICE_ADMIN_POLICIES);
@@ -1042,8 +1060,11 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         // no lock task present, ignore
       }
       return true;
-    } else if (WIPE_DATA_KEY.equals(key)) {
-      showWipeDataPrompt();
+    } else if (REMOVE_MANAGED_PROFILE_KEY.equals(key)) {
+      showWipeDataPrompt(/* wipeDevice */ false);
+      return true;
+    } else if (FACTORY_RESET_DEVICE_KEY.equals(key)) {
+      showWipeDataPrompt(/* wipeDevice */ true);
       return true;
     } else if (REMOVE_DEVICE_OWNER_KEY.equals(key)) {
       showRemoveDeviceOwnerPrompt();
@@ -1385,12 +1406,12 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     } else if (SET_PROFILE_NAME_KEY.equals(key)) {
       showSetProfileNameDialog();
       return true;
-    } else if (FACTORY_RESET_ORG_OWNED_DEVICE.equals(key)) {
-      factoryResetOrgOwnedDevice();
-      return true;
     } else if (SET_FACTORY_RESET_PROTECTION_POLICY_KEY.equals(key)) {
-      showFragment(new FactoryResetProtectionPolicyFragment());
-      return true;
+      if (Util.SDK_INT >= VERSION_CODES.R) {
+        showFragment(new FactoryResetProtectionPolicyFragment());
+        return true;
+      }
+      return false;
     } else if (SET_ORGANIZATION_ID_KEY.equals(key)) {
       showSetOrganizationIdDialog();
       return true;
@@ -1417,6 +1438,9 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
       return true;
     } else if (CREDENTIAL_MANAGER_CLEAR_POLICY_KEY.equals(key)) {
       resetCredentialManagerPolicy();
+      return true;
+    } else if (MANAGE_ESIM_KEY.equals(key)) {
+      showFragment(new EsimControlFragment());
       return true;
     }
     return false;
@@ -1676,10 +1700,11 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         reloadEnableLogoutUi();
         return true;
       case AUTO_BRIGHTNESS_KEY:
-        mDevicePolicyManager.setSystemSetting(
-            mAdminComponentName,
-            Settings.System.SCREEN_BRIGHTNESS_MODE,
-            newValue.equals(true) ? "1" : "0");
+        (mIsOrganizationOwnedProfileOwner ? mParentDevicePolicyManager : mDevicePolicyManager)
+            .setSystemSetting(
+                mAdminComponentName,
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                newValue.equals(true) ? "1" : "0");
         reloadAutoBrightnessUi();
         return true;
       case SET_NEW_PASSWORD_WITH_COMPLEXITY:
@@ -1742,9 +1767,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
   @TargetApi(VERSION_CODES.R)
   private void setCameraDisabledOnParent(boolean disabled) {
-    DevicePolicyManager parentDpm =
-        mDevicePolicyManager.getParentProfileInstance(mAdminComponentName);
-    parentDpm.setCameraDisabled(mAdminComponentName, disabled);
+    mParentDevicePolicyManager.setCameraDisabled(mAdminComponentName, disabled);
   }
 
   @TargetApi(VERSION_CODES.N)
@@ -1793,9 +1816,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
   @TargetApi(VERSION_CODES.R)
   private void setScreenCaptureDisabledOnParent(boolean disabled) {
-    DevicePolicyManager parentDpm =
-        mDevicePolicyManager.getParentProfileInstance(mAdminComponentName);
-    parentDpm.setScreenCaptureDisabled(mAdminComponentName, disabled);
+    mParentDevicePolicyManager.setScreenCaptureDisabled(mAdminComponentName, disabled);
   }
 
   private boolean isDeviceOwner() {
@@ -2049,10 +2070,10 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   }
 
   /**
-   * Shows a prompt to ask for confirmation on wiping the data and also provide an option to set if
-   * external storage and factory reset protection data also needs to wiped.
+   * Shows a prompt to ask for confirmation on wiping the profile / device and also provide an
+   * option to set if external storage and factory reset protection data also needs to wiped.
    */
-  private void showWipeDataPrompt() {
+  private void showWipeDataPrompt(boolean wipeDevice) {
     final LayoutInflater inflater = getActivity().getLayoutInflater();
     final View dialogView = inflater.inflate(R.layout.wipe_data_dialog_prompt, null);
     final CheckBox externalStorageCheckBox =
@@ -2061,7 +2082,10 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         (CheckBox) dialogView.findViewById(R.id.reset_protection_checkbox);
 
     new AlertDialog.Builder(getActivity())
-        .setTitle(R.string.wipe_data_title)
+        .setTitle(
+            wipeDevice
+                ? R.string.factory_reset_device_title
+                : R.string.remove_managed_profile_title)
         .setView(dialogView)
         .setPositiveButton(
             android.R.string.ok,
@@ -2077,8 +2101,28 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
                     (resetProtectionCheckBox.isChecked()
                         ? DevicePolicyManager.WIPE_RESET_PROTECTION_DATA
                         : 0);
-                mDevicePolicyManagerGateway.wipeData(
-                    flags, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
+                if (wipeDevice) {
+                  if (Util.SDK_INT >= VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    // Since U, factory reset needs to use wipeDevice()
+                    mDevicePolicyManagerGateway.wipeDevice(
+                        flags, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
+                  } else if (mIsOrganizationOwnedProfileOwner) {
+                    // Before U, factory reset by COPE goes via the parent DPM instance
+                    DevicePolicyManagerGatewayImpl.forParentProfile(getActivity())
+                        .wipeData(
+                            /* flags= */ 0,
+                            (v) -> onSuccessLog("wipeData"),
+                            (e) -> onErrorLog("wipeData", e));
+                  } else {
+                    // Before U, factory reset by DO goes via the regular DPM instance
+                    mDevicePolicyManagerGateway.wipeData(
+                        flags, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
+                  }
+                } else {
+                  // Wipe user
+                  mDevicePolicyManagerGateway.wipeData(
+                      flags, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
+                }
               }
             })
         .setNegativeButton(android.R.string.cancel, null)
@@ -2544,11 +2588,8 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
   private void loadAppStatus() {
     final @StringRes List<Integer> appStatus = new ArrayList<>();
-    boolean isOrgOwned =
-        Util.SDK_INT >= VERSION_CODES.R
-            && mDevicePolicyManagerGateway.isOrganizationOwnedDeviceWithManagedProfile();
     if (mDevicePolicyManager.isProfileOwnerApp(mPackageName)) {
-      if (isOrgOwned) {
+      if (mIsOrganizationOwnedProfileOwner) {
         appStatus.add(R.string.this_is_an_org_owned_profile_owner);
       } else {
         appStatus.add(R.string.this_is_a_profile_owner);
@@ -2630,9 +2671,8 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     String summary;
     int complexity = PASSWORD_COMPLEXITY.get(mDevicePolicyManager.getPasswordComplexity());
     if (isManagedProfileOwner() && Util.SDK_INT >= VERSION_CODES.R) {
-      DevicePolicyManager parentDpm =
-          mDevicePolicyManager.getParentProfileInstance(mAdminComponentName);
-      int parentComplexity = PASSWORD_COMPLEXITY.get(parentDpm.getPasswordComplexity());
+      int parentComplexity =
+          PASSWORD_COMPLEXITY.get(mParentDevicePolicyManager.getPasswordComplexity());
       summary =
           String.format(
               getString(R.string.password_complexity_profile_summary),
@@ -2659,9 +2699,8 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     String summary;
     int complexity = PASSWORD_COMPLEXITY.get(getRequiredComplexity(mDevicePolicyManager));
     if (isManagedProfileOwner() && Util.SDK_INT >= VERSION_CODES.S) {
-      DevicePolicyManager parentDpm =
-          mDevicePolicyManager.getParentProfileInstance(mAdminComponentName);
-      int parentComplexity = PASSWORD_COMPLEXITY.get(getRequiredComplexity(parentDpm));
+      int parentComplexity =
+          PASSWORD_COMPLEXITY.get(getRequiredComplexity(mParentDevicePolicyManager));
       summary =
           String.format(
               getString(R.string.password_complexity_profile_summary),
@@ -2687,8 +2726,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   // running older releases and obviates the need for a target sdk check here.
   @TargetApi(VERSION_CODES.S)
   private void setRequiredPasswordComplexityOnParent(int complexity) {
-    setRequiredPasswordComplexity(
-        mDevicePolicyManager.getParentProfileInstance(mAdminComponentName), complexity);
+    setRequiredPasswordComplexity(mParentDevicePolicyManager, complexity);
   }
 
   // NOTE: The setRequiredPasswordComplexity call is gated by a check in device_policy_header.xml,
@@ -2712,15 +2750,14 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     String summary;
     boolean compliant = mDevicePolicyManager.isActivePasswordSufficient();
     if (isManagedProfileOwner()) {
-      DevicePolicyManager parentDpm =
-          mDevicePolicyManager.getParentProfileInstance(mAdminComponentName);
-      boolean parentCompliant = parentDpm.isActivePasswordSufficient();
+      boolean parentCompliant = mParentDevicePolicyManager.isActivePasswordSufficient();
       final String deviceCompliant;
       if (Util.SDK_INT < VERSION_CODES.S) {
         deviceCompliant = "N/A";
       } else {
         deviceCompliant =
-            Boolean.toString(parentDpm.isActivePasswordSufficientForDeviceRequirement());
+            Boolean.toString(
+                mParentDevicePolicyManager.isActivePasswordSufficientForDeviceRequirement());
       }
       summary =
           String.format(
@@ -2812,9 +2849,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
   @TargetApi(VERSION_CODES.R)
   private void reloadCameraDisableOnParentUi() {
-    DevicePolicyManager parentDpm =
-        mDevicePolicyManager.getParentProfileInstance(mAdminComponentName);
-    boolean isCameraDisabled = parentDpm.getCameraDisabled(mAdminComponentName);
+    boolean isCameraDisabled = mParentDevicePolicyManager.getCameraDisabled(mAdminComponentName);
     mDisableCameraOnParentSwitchPreference.setChecked(isCameraDisabled);
   }
 
@@ -2871,9 +2906,8 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
   @TargetApi(VERSION_CODES.R)
   private void reloadScreenCaptureDisableOnParentUi() {
-    DevicePolicyManager parentDpm =
-        mDevicePolicyManager.getParentProfileInstance(mAdminComponentName);
-    boolean isScreenCaptureDisabled = parentDpm.getScreenCaptureDisabled(mAdminComponentName);
+    boolean isScreenCaptureDisabled =
+        mParentDevicePolicyManager.getScreenCaptureDisabled(mAdminComponentName);
     mDisableScreenCaptureOnParentSwitchPreference.setChecked(isScreenCaptureDisabled);
   }
 
@@ -3682,9 +3716,8 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
             (dialog, which) -> {
               String packageName = input.getText().toString();
               try {
-                if (mDevicePolicyManager
-                    .getParentProfileInstance(mAdminComponentName)
-                    .setApplicationHidden(mAdminComponentName, packageName, !showHiddenApps)) {
+                if (mParentDevicePolicyManager.setApplicationHidden(
+                    mAdminComponentName, packageName, !showHiddenApps)) {
                   showToast(successResId, packageName);
                 } else {
                   showToast(getString(failureResId, packageName), Toast.LENGTH_LONG);
@@ -4263,8 +4296,9 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
                 showToast(R.string.invalid_screen_brightness);
                 return;
               }
-              mDevicePolicyManager.setSystemSetting(
-                  mAdminComponentName, Settings.System.SCREEN_BRIGHTNESS, brightness);
+              (mIsOrganizationOwnedProfileOwner ? mParentDevicePolicyManager : mDevicePolicyManager)
+                  .setSystemSetting(
+                      mAdminComponentName, Settings.System.SCREEN_BRIGHTNESS, brightness);
             })
         .setNegativeButton(android.R.string.cancel, null)
         .show();
@@ -4341,10 +4375,11 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
                 showToast(R.string.invalid_screen_off_timeout);
                 return;
               }
-              mDevicePolicyManager.setSystemSetting(
-                  mAdminComponentName,
-                  Settings.System.SCREEN_OFF_TIMEOUT,
-                  Integer.toString(screenTimeoutVaue * 1000));
+              (mIsOrganizationOwnedProfileOwner ? mParentDevicePolicyManager : mDevicePolicyManager)
+                  .setSystemSetting(
+                      mAdminComponentName,
+                      Settings.System.SCREEN_OFF_TIMEOUT,
+                      Integer.toString(screenTimeoutVaue * 1000));
             })
         .setNegativeButton(android.R.string.cancel, null)
         .show();
@@ -4707,13 +4742,6 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     return NO_CUSTOM_CONSTRAINT;
   }
 
-  @TargetApi(30)
-  private void factoryResetOrgOwnedDevice() {
-    DevicePolicyManagerGatewayImpl.forParentProfile(getActivity())
-        .wipeData(
-            /* flags= */ 0, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
-  }
-
   private boolean isOrganizationOwnedDevice() {
     return mDevicePolicyManager.isDeviceOwnerApp(mPackageName)
         || (mDevicePolicyManager.isProfileOwnerApp(mPackageName)
@@ -4762,6 +4790,15 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     if (mUserManager.hasUserRestriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY)
         || mUserManager.hasUserRestriction(DISALLOW_INSTALL_UNKNOWN_SOURCES)) {
       return R.string.user_restricted;
+    }
+    return NO_CUSTOM_CONSTRAINT;
+  }
+
+  private int validateBrightnessControlConstraint() {
+    // Brightness control is always available to DO, and is enabled for COPE starting from
+    // Android V
+    if (mIsOrganizationOwnedProfileOwner && Util.SDK_INT < VERSION_CODES.VANILLA_ICE_CREAM) {
+      return R.string.requires_android_v;
     }
     return NO_CUSTOM_CONSTRAINT;
   }

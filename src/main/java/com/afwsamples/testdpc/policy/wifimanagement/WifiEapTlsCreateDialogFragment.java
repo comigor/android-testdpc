@@ -60,6 +60,8 @@ public class WifiEapTlsCreateDialogFragment extends DialogFragment {
   private TextView mUserCertTextView;
   private EditText mCertPasswordEditText;
   private EditText mIdentityEditText;
+  private EditText mDomainEditText;
+  private EditText mAltSubjectMatchEditText;
 
   public static WifiEapTlsCreateDialogFragment newInstance(WifiConfiguration config) {
     Bundle arguments = new Bundle();
@@ -105,6 +107,11 @@ public class WifiEapTlsCreateDialogFragment extends DialogFragment {
     mSsidEditText = (EditText) rootView.findViewById(R.id.ssid);
     mCertPasswordEditText = (EditText) rootView.findViewById(R.id.wifi_client_cert_password);
     mIdentityEditText = (EditText) rootView.findViewById(R.id.wifi_identity);
+    mDomainEditText = (EditText) rootView.findViewById(R.id.wifi_domain);
+    mAltSubjectMatchEditText = (EditText) rootView.findViewById(R.id.wifi_alt_subject_match);
+    // These config options are not available before API 23
+    mDomainEditText.setEnabled(SDK_INT >= VERSION_CODES.M);
+    mAltSubjectMatchEditText.setEnabled(SDK_INT >= VERSION_CODES.M);
     populateUi();
     final AlertDialog dialog =
         new AlertDialog.Builder(getActivity())
@@ -165,10 +172,14 @@ public class WifiEapTlsCreateDialogFragment extends DialogFragment {
     // Both ca cert and client are not populated in the WifiConfiguration object.
     updateSelectedCert(mCaCertTextView, null, null);
     updateSelectedCert(mUserCertTextView, null, null);
+    if (SDK_INT >= VERSION_CODES.M) {
+      mDomainEditText.setText(mWifiConfiguration.enterpriseConfig.getDomainSuffixMatch());
+      mAltSubjectMatchEditText.setText(mWifiConfiguration.enterpriseConfig.getAltSubjectMatch());
+    }
   }
 
   private boolean extractInputDataAndSave() {
-    String ssid = mSsidEditText.getText().toString();
+    String ssid = getQuotedString(mSsidEditText.getText().toString());
     if (TextUtils.isEmpty(ssid)) {
       mSsidEditText.setError(getString(R.string.error_missing_ssid));
       return false;
@@ -196,13 +207,36 @@ public class WifiEapTlsCreateDialogFragment extends DialogFragment {
     return false;
   }
 
+  private String getQuotedString(String string) {
+    return "\"" + string + "\"";
+  }
+
   private WifiEnterpriseConfig extractEnterpriseConfig() {
     WifiEnterpriseConfig config = new WifiEnterpriseConfig();
     config.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
     String identity = mIdentityEditText.getText().toString();
+    String domain = mDomainEditText.getText().toString();
+    String altSubjectMatch = mAltSubjectMatchEditText.getText().toString();
 
     if (!TextUtils.isEmpty(identity)) {
       config.setIdentity(identity);
+    }
+
+    if (SDK_INT >= VERSION_CODES.S
+        && TextUtils.isEmpty(domain)
+        && TextUtils.isEmpty(altSubjectMatch)) {
+      showToast(R.string.error_domain_and_alt_subject_match_both_unset);
+      return null;
+    }
+
+    if (SDK_INT >= VERSION_CODES.M) {
+      if (!TextUtils.isEmpty(domain)) {
+        config.setDomainSuffixMatch(domain);
+      }
+
+      if (!TextUtils.isEmpty(altSubjectMatch)) {
+        config.setAltSubjectMatch(altSubjectMatch);
+      }
     }
 
     if (mCaCertUri == null) {

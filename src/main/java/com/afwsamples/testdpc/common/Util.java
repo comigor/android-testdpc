@@ -57,8 +57,7 @@ public class Util {
   private static final String TAG = "Util";
   private static final int DEFAULT_BUFFER_SIZE = 4096;
 
-  // TODO(b/258511062): change check once U SDK is launched
-  private static final boolean IS_RUNNING_U = VERSION.CODENAME.equals("UpsideDownCake");
+  private static final boolean IS_RUNNING_V = VERSION.CODENAME.equals("VanillaIceCream");
 
   /**
    * A replacement for {@link VERSION.SDK_INT} that is compatible with pre-release SDKs
@@ -66,7 +65,7 @@ public class Util {
    * <p>This will be set to the version SDK, or {@link VERSION_CODES.CUR_DEVELOPMENT} if the SDK int
    * is not yet assigned.
    */
-  public static final int SDK_INT = IS_RUNNING_U ? VERSION_CODES.CUR_DEVELOPMENT : VERSION.SDK_INT;
+  public static final int SDK_INT = IS_RUNNING_V ? VERSION_CODES.CUR_DEVELOPMENT : VERSION.SDK_INT;
 
   // Copied over from RoleManager.ROLE_DEVICE_POLICY_MANAGEMENT, which can't be referenced directly
   // since it's a @SystemAPI.
@@ -155,7 +154,17 @@ public class Util {
   public static boolean isPrimaryUser(Context context) {
     if (Util.SDK_INT >= VERSION_CODES.M) {
       UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-      return userManager.isSystemUser();
+
+      // Starting from Android V, on headless devices TestDPC is provisioned using the single_user
+      // DO mode and is set as the DO on the main user. UserManager.isMainUser is not a public API,
+      // so we'll have to depend on the fact that the DO is installed on the main user for the
+      // check.
+      if (Util.SDK_INT >= VERSION_CODES.VANILLA_ICE_CREAM
+          && userManager.isHeadlessSystemUserMode()) {
+        return isDeviceOwner(context);
+      } else {
+        return userManager.isSystemUser();
+      }
     } else {
       // Assume only DO can be primary user. This is not perfect but the cases in which it is
       // wrong are uncommon and require adb to set up.

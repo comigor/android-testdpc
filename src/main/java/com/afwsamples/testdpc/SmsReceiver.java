@@ -37,26 +37,13 @@ public class SmsReceiver extends BroadcastReceiver {
         }
     }
 
-    private SharedPreferences sharedPreferences;
-
-    private String getSavedPassword(Context context) {
-        try {
-            sharedPreferences = context.getSharedPreferences(PasswordActivity.PREFS_NAME, MODE_PRIVATE);
-            String encryptedPassword = sharedPreferences.getString(PasswordActivity.KEY_PASSWORD, null);
-            return PasswordActivity.decryptPassword(encryptedPassword);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
     private void executeCommand(Context context, String message) {
         // Split the message body into individual arguments
         String[] commandArgs = message.split("\\s+"); // Split by spaces to get individual args
 
         if (commandArgs.length > 0) {
             // Retrieve the saved password
-            String savedPassword = getSavedPassword(context);
+            String savedPassword = PasswordActivity.getSavedPassword(context);
 
             // Check if the first argument matches the saved password
             // TODO: instead of checking for password, allow only some commands, especially "start-theft-mode"

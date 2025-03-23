@@ -1,32 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/black"
-    android:padding="24dp">
+    android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/title"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/black"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:text="Esse celular é roubado!"
+            android:textColor="@color/white"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/contact_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/title"
+            android:layout_centerHorizontal="true"
+            android:text="Se você achou/comprou esse celular roubado, por favor entre em contato com:\nIgor\n(11) 92000-2856\nigorborges12@gmail.com"
+            android:textColor="@color/white"
+            android:textSize="18sp"
+            android:gravity="center"
+            android:lineSpacingExtra="8dp"/>
+
+    </RelativeLayout>
+
+    <EditText
+        android:id="@+id/passwordEditText"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_centerHorizontal="true"
-        android:text="Esse celular é roubado!"
-        android:textColor="@color/white"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp"/>
+        android:layout_gravity="center"
+        android:hint="Senha"
+        android:inputType="textPassword"
+        android:visibility="gone"
+        android:imeOptions="actionDone"/>
 
-    <TextView
-        android:id="@+id/contact_info"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/title"
-        android:layout_centerHorizontal="true"
-        android:text="Se você achou/comprou esse celular roubado, por favor entre em contato com:\nIgor\n(11) 92000-2856\nigorborges12@gmail.com"
-        android:textColor="@color/white"
-        android:textSize="18sp"
-        android:gravity="center"
-        android:lineSpacingExtra="8dp"/>
-
-</RelativeLayout>
+</FrameLayout>

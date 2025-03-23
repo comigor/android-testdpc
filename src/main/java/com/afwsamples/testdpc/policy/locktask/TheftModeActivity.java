@@ -51,6 +51,13 @@ import com.afwsamples.testdpc.common.Util;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+import android.widget.Toast;
+import java.util.Arrays;
+import com.afwsamples.testdpc.PasswordActivity;
 
 /**
  * Shows the list of apps passed in the {@link #LOCKED_APP_PACKAGE_LIST} extra (or previously saved
@@ -81,7 +88,7 @@ public class TheftModeActivity extends Activity {
     DISALLOW_FACTORY_RESET,
     DISALLOW_ADD_USER,
     DISALLOW_MOUNT_PHYSICAL_MEDIA,
-    DISALLOW_ADJUST_VOLUME
+    DISALLOW_ADJUST_VOLUME,
   };
 
   private ComponentName mAdminComponentName;
@@ -99,6 +106,8 @@ public class TheftModeActivity extends Activity {
 
     setDefaultKioskPolicies(true);
     setContentView(R.layout.activity_theft_mode);
+
+    setupGestures();
   }
 
   @Override
@@ -223,5 +232,93 @@ public class TheftModeActivity extends Activity {
     if (intent.getBooleanExtra(STOP_THEFT_MODE, false)) {
       onBackdoorClicked();
     }
+  }
+
+  // ------------------------------
+  private GestureDetector mGestureDetector;
+  private List<String> mGestureSequence = new ArrayList<>();
+  private static final List<String> CORRECT_GESTURE_SEQUENCE = Arrays.asList(
+    "up", "up", "down", "down", "left", "right", "left", "right"
+  );
+
+  private EditText mPasswordEditText;
+
+  private void setupGestures() {
+    mPasswordEditText = findViewById(R.id.passwordEditText);
+
+    mGestureDetector = new GestureDetector(this, new GestureListener());
+
+    View rootView = findViewById(android.R.id.content);
+    rootView.setOnTouchListener(new View.OnTouchListener() {
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+            mGestureDetector.onTouchEvent(event);
+            return true;
+        }
+    });
+
+    mPasswordEditText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+        @Override
+        public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                checkPassword();
+                return true;
+            }
+            return false;
+        }
+    });
+  }
+
+  private class GestureListener extends GestureDetector.SimpleOnGestureListener {
+    @Override
+    public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+        float diffX = e2.getX() - e1.getX();
+        float diffY = e2.getY() - e1.getY();
+
+        String gesture;
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX > 0) {
+              gesture = "right";
+            } else {
+              gesture = "left";
+            }
+        } else {
+            if (diffY > 0) {
+              gesture = "down";
+            } else {
+              gesture = "up";
+            }
+        }
+
+        Log.e("TheftMode", "igor flinged " + gesture);
+        mGestureSequence.add(gesture);
+        checkGestureSequence();
+        return true;
+    }
+  }
+
+  private void checkGestureSequence() {
+    if (mGestureSequence.size() > 20) {
+        mGestureSequence.subList(0, mGestureSequence.size() - 20).clear();
+    }
+
+    int correctSequenceSize = CORRECT_GESTURE_SEQUENCE.size();
+    if (mGestureSequence.size() >= correctSequenceSize) {
+        List<String> lastGestures = mGestureSequence.subList(mGestureSequence.size() - correctSequenceSize, mGestureSequence.size());
+
+        if (lastGestures.equals(CORRECT_GESTURE_SEQUENCE)) {
+            mPasswordEditText.setVisibility(View.VISIBLE);
+            mPasswordEditText.requestFocus();
+            mGestureSequence.clear();
+        }
+    }
+  }
+
+  private void checkPassword() {
+      String enteredPassword = mPasswordEditText.getText().toString();
+      String savedPassword = PasswordActivity.getSavedPassword(this);
+      if (enteredPassword.equals(savedPassword)) {
+          onBackdoorClicked();
+      }
   }
 }

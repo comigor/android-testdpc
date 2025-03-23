@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.content.Intent;
 import android.Manifest;
 import android.hardware.fingerprint.FingerprintManager;
+import android.content.Context;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -124,6 +125,17 @@ public class PasswordActivity extends Activity {
         } catch (Exception e) {
             Toast.makeText(this, "Failed to verify password", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
+        }
+    }
+
+    public static String getSavedPassword(Context context) {
+        try {
+            SharedPreferences sharedPreferences = context.getSharedPreferences(PasswordActivity.PREFS_NAME, MODE_PRIVATE);
+            String encryptedPassword = sharedPreferences.getString(PasswordActivity.KEY_PASSWORD, null);
+            return decryptPassword(encryptedPassword);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
     }
 

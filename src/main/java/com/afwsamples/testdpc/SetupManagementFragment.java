@@ -112,17 +112,17 @@ public class SetupManagementFragment extends Fragment
 
     FooterButton nextButton =
         new FooterButton.Builder(context)
-            .setText(R.string.sud_next_button_label)
+            .setText(com.google.android.setupdesign.R.string.sud_next_button_label)
             .setListener(this::onNavigateNext)
             .setButtonType(FooterButton.ButtonType.NEXT)
-            .setTheme(R.style.SudGlifButton_Primary)
+            .setTheme(com.google.android.setupdesign.R.style.SudGlifButton_Primary)
             .build();
     FooterButton exitButton =
         new FooterButton.Builder(context)
             .setText(R.string.exit)
             .setListener(this::onNavigateBack)
             .setButtonType(FooterButton.ButtonType.OTHER)
-            .setTheme(R.style.SudGlifButtonBar_Stackable)
+            .setTheme(com.google.android.setupdesign.R.style.SudGlifButtonBar_Stackable)
             .build();
     mixin.setPrimaryButton(nextButton);
     mixin.setSecondaryButton(exitButton);

@@ -70,7 +70,7 @@ public class FinalizeActivity extends Activity {
             .setText(R.string.finish_button)
             .setListener(this::onNavigateNext)
             .setButtonType(FooterButton.ButtonType.NEXT)
-            .setTheme(R.style.SudGlifButton_Primary)
+            .setTheme(com.google.android.setupdesign.R.style.SudGlifButton_Primary)
             .build();
     mixin.setPrimaryButton(finishButton);
 

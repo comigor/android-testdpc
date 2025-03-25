@@ -85,10 +85,10 @@ public class AddAccountActivity extends Activity {
     FooterBarMixin mixin = layout.getMixin(FooterBarMixin.class);
     mixin.setPrimaryButton(
         new FooterButton.Builder(this)
-            .setText(R.string.sud_next_button_label)
+            .setText(com.google.android.setupdesign.R.string.sud_next_button_label)
             .setListener(this::onNavigateNext)
             .setButtonType(FooterButton.ButtonType.NEXT)
-            .setTheme(R.style.SudGlifButton_Primary)
+            .setTheme(com.google.android.setupdesign.R.style.SudGlifButton_Primary)
             .build());
 
     Bundle extras = getIntent().getExtras();

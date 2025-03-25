@@ -19,13 +19,13 @@ public final class ThemeUtil {
     if (Util.SDK_INT < VERSION_CODES.TIRAMISU) {
       defaultTheme =
           ThemeHelper.isSetupWizardDayNightEnabled(context)
-              ? R.style.SudThemeGlifV3_DayNight
-              : R.style.SudThemeGlifV3_Light;
+              ? com.google.android.setupdesign.R.style.SudThemeGlifV3_DayNight
+              : com.google.android.setupdesign.R.style.SudThemeGlifV3_Light;
     } else {
       defaultTheme =
           ThemeHelper.isSetupWizardDayNightEnabled(context)
-              ? R.style.SudThemeGlifV4_DayNight
-              : R.style.SudThemeGlifV4_Light;
+              ? com.google.android.setupdesign.R.style.SudThemeGlifV4_DayNight
+              : com.google.android.setupdesign.R.style.SudThemeGlifV4_Light;
     }
 
     // a. set GlifTheme based on suw intent extra & SUW daynight flag.

@@ -1,0 +1,29 @@
+pluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "Test DPC"
+include ':app'
+
+include ':setupdesign'
+project(':setupdesign').projectDir = new File("setupdesign-4634dac90e3c09a78c2fcdfcb16ab9cb16265527")
+include ':setupcompat'
+project(':setupcompat').projectDir = new File("setupcompat-2ce41c8f4de550b5186233cec0a722dd0ffd9a84")

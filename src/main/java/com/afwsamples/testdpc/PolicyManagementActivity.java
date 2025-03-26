@@ -38,6 +38,7 @@ import java.io.PrintWriter;
 import android.content.Intent;
 import androidx.annotation.Nullable;
 
+import dev.borges.shadow.POffService;
 import dev.borges.shadow.PasswordActivity;
 import dev.borges.shadow.PowerButtonReceiver;
 
@@ -73,6 +74,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
     //  Register power button receiver when app opens
     PowerButtonReceiver.registerReceiver(getApplicationContext());
+    POffService.startSpecialPermissionActivity(getApplicationContext());
   }
 
   @Override

@@ -25,7 +25,6 @@ import javax.crypto.SecretKey;
 
 import dev.borges.shadow.util.PasswordHelper;
 
-@TargetApi(Build.VERSION_CODES.M)
 public class PasswordActivity extends Activity {
     private static final String TAG = "PasswordActivity";
 

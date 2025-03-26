@@ -12,9 +12,9 @@ import android.os.VibrationEffect;
 public class PowerButtonReceiver extends BroadcastReceiver {
     private static final String TAG = "PowerButtonReceiver";
 
-    private static final long TIME_WINDOW = 2000; // TODO: make configurable
-    private static final int NUMBER_OF_PRESSES = 4; // TODO: make configurable
-    private static final long DELAY_TO_START_MODE = 10 * 1000; // TODO: change to 5 minutes, make configurable
+    private static final long TIME_WINDOW = 2000; // TODO(igor): make configurable
+    private static final int NUMBER_OF_PRESSES = 4; // TODO(igor): make configurable
+    private static final long DELAY_TO_START_MODE = 10 * 1000; // TODO(igor): change to 5 minutes, make configurable
 
     private long lastPressTime = 0;
     private int pressCount = 0;

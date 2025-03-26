@@ -32,7 +32,8 @@ import android.widget.EditText;
 
 import java.util.Arrays;
 
-@TargetApi(VERSION_CODES.M)
+import dev.borges.shadow.util.PasswordHelper;
+
 public class TheftModeActivity extends Activity {
     private static final String TAG = "TheftModeActivity";
 
@@ -221,28 +222,25 @@ public class TheftModeActivity extends Activity {
 
     @TargetApi(VERSION_CODES.N)
     private void saveCurrentConfiguration() {
-        if (Util.SDK_INT >= VERSION_CODES.N) {
-            Bundle settingsBundle = mDevicePolicyManager.getUserRestrictions(mAdminComponentName);
-            SharedPreferences.Editor editor =
-                    getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE).edit();
+        Bundle settingsBundle = mDevicePolicyManager.getUserRestrictions(mAdminComponentName);
+        SharedPreferences.Editor editor =
+                getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE).edit();
 
-            for (String userRestriction : KIOSK_USER_RESTRICTIONS) {
-                boolean currentSettingValue = settingsBundle.getBoolean(userRestriction);
-                editor.putBoolean(userRestriction, currentSettingValue);
-            }
-            editor.apply();
+        for (String userRestriction : KIOSK_USER_RESTRICTIONS) {
+            boolean currentSettingValue = settingsBundle.getBoolean(userRestriction);
+            editor.putBoolean(userRestriction, currentSettingValue);
         }
+        editor.apply();
     }
 
+    @TargetApi(VERSION_CODES.N)
     private void restorePreviousConfiguration() {
-        if (Util.SDK_INT >= VERSION_CODES.N) {
-            SharedPreferences sharedPreferences =
-                    getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE);
+        SharedPreferences sharedPreferences =
+                getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE);
 
-            for (String userRestriction : KIOSK_USER_RESTRICTIONS) {
-                boolean prevSettingValue = sharedPreferences.getBoolean(userRestriction, false);
-                setUserRestriction(userRestriction, prevSettingValue);
-            }
+        for (String userRestriction : KIOSK_USER_RESTRICTIONS) {
+            boolean prevSettingValue = sharedPreferences.getBoolean(userRestriction, false);
+            setUserRestriction(userRestriction, prevSettingValue);
         }
     }
 
@@ -275,8 +273,9 @@ public class TheftModeActivity extends Activity {
         });
 
         mPasswordEditText.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                checkPassword();
+            if (actionId == EditorInfo.IME_ACTION_DONE &&
+                    PasswordHelper.checkPassword(this, mPasswordEditText.getText().toString())) {
+                onBackdoorClicked();
                 return true;
             }
             return false;
@@ -325,14 +324,6 @@ public class TheftModeActivity extends Activity {
                 mPasswordEditText.requestFocus();
                 mGestureSequence.clear();
             }
-        }
-    }
-
-    private void checkPassword() {
-        String enteredPassword = mPasswordEditText.getText().toString();
-        String savedPassword = PasswordActivity.getSavedPassword(this);
-        if (enteredPassword.equals(savedPassword)) {
-            onBackdoorClicked();
         }
     }
 }

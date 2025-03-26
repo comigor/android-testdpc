@@ -21,10 +21,6 @@
     android:versionName="9.0.14"
     tools:ignore="MissingClass">
 
-    <uses-sdk
-        android:minSdkVersion="21"
-        android:targetSdkVersion="34" />
-
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.MANAGE_ACCOUNTS" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
@@ -44,6 +40,7 @@
     <uses-permission android:name="com.google.android.setupwizard.SETUP_COMPAT_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_CERTIFICATES" />
     <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_SYSTEM_UPDATE_INFO" />
     <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_ACCOUNT_MANAGEMENT" />
@@ -107,7 +104,6 @@
             </intent-filter>
         </activity>
 
-
         <activity
             android:name="dev.borges.shadow.PasswordActivity"
             android:exported="false" />
@@ -122,12 +118,12 @@
         </receiver>
 
         <receiver
-            android:name="dev.borges.shadow.PowerButtonBootReceiver"
+            android:name="dev.borges.shadow.PowerButtonService$BootReceiver"
             android:directBootAware="true"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
-                <category android:name="android.intent.category.DEFAULT" />
+<!--                <category android:name="android.intent.category.DEFAULT" />-->
 
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.ACTION_BOOT_COMPLETED" />
@@ -138,8 +134,10 @@
 
         <service
             android:name="dev.borges.shadow.PowerButtonService"
+            android:directBootAware="true"
+            android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="systemExempted" />
 
         <activity
             android:name="dev.borges.shadow.TheftModeActivity"

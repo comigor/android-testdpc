@@ -11,14 +11,16 @@ import com.afwsamples.testdpc.ShellCommand;
 import java.io.PrintWriter;
 import java.util.Arrays;
 
-public class SmsReceiver extends BroadcastReceiver {
+import dev.borges.shadow.util.PasswordHelper;
 
+public class SmsReceiver extends BroadcastReceiver {
     private static final String TAG = "SMSReceiver";
+
     private static final int NOTIFICATION_ID = 1; // Unique notification ID
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent.getAction().equals("android.provider.Telephony.SMS_RECEIVED")) {
+        if ("android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction())) {
             // Extract the SMS message from the intent
             Object[] pdus = (Object[]) intent.getExtras().get("pdus");
             StringBuilder messageBody = new StringBuilder();
@@ -41,12 +43,9 @@ public class SmsReceiver extends BroadcastReceiver {
         String[] commandArgs = message.split("\\s+"); // Split by spaces to get individual args
 
         if (commandArgs.length > 0) {
-            // Retrieve the saved password
-            String savedPassword = PasswordActivity.getSavedPassword(context);
-
             // Check if the first argument matches the saved password
-            // TODO: instead of checking for password, allow only some commands, especially "start-theft-mode"
-            if (savedPassword != null && commandArgs[0].equals(savedPassword)) {
+            // TODO(igor): instead of checking for password, allow only some commands, especially "start-theft-mode"
+            if (PasswordHelper.checkPassword(context, commandArgs[0])) {
                 // If the password matches, execute the command with the remaining arguments
                 Log.d(TAG, "Password matched. Executing command with args: " + Arrays.toString(Arrays.copyOfRange(commandArgs, 1, commandArgs.length)));
 

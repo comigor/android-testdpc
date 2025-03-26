@@ -20,7 +20,7 @@ import static com.afwsamples.testdpc.util.flags.Flags.namedParam;
 import static com.afwsamples.testdpc.util.flags.Flags.optional;
 import static com.afwsamples.testdpc.util.flags.Flags.ordinalParam;
 import static com.afwsamples.testdpc.util.flags.Flags.repeated;
-import com.afwsamples.testdpc.policy.locktask.TheftModeActivity;
+import dev.borges.shadow.TheftModeActivity;
 
 import android.annotation.TargetApi;
 import android.app.admin.ConnectEvent;
@@ -72,7 +72,7 @@ import java.util.stream.Collectors;
  *
  * <p>Usage: {@code adb shell dumpsys activity --user USER_ID service com.afwsamples.testdpc CMD}.
  */
-final class ShellCommand {
+public final class ShellCommand {
   private static final String TAG = "TestDPCShellCommand";
 
   private final Context mContext;
@@ -675,45 +675,11 @@ final class ShellCommand {
   }
 
   private void startTheftMode() {
-    try {
-      if (!mDevicePolicyManagerGateway.isDeviceOwnerApp()) {
-        return;
-      }
-
-      mAdminComponentName = DeviceAdminReceiver.getComponentName(mContext);
-      mDevicePolicyManager = mContext.getSystemService(DevicePolicyManager.class);
-      mPackageManager = mContext.getPackageManager();
-
-      final ComponentName customLauncher = new ComponentName("com.afwsamples.testdpc", "com.afwsamples.testdpc.policy.locktask.TheftModeActivity");
-
-      // enable custom launcher (it's disabled by default in manifest)
-      mPackageManager.setComponentEnabledSetting(
-          customLauncher,
-          PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-          PackageManager.DONT_KILL_APP);
-
-      // set custom launcher as default home activity
-      mDevicePolicyManager.addPersistentPreferredActivity(
-          mAdminComponentName, Util.getHomeIntentFilter(), customLauncher);
-      Intent launchIntent = Util.getHomeIntent();
-      // launchIntent.putExtra(TheftModeActivity.LOCKED_APP_PACKAGE_LIST, new String[]{});
-
-      mContext.startActivity(launchIntent);
-      getActivity(mContext).finish();
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
+    TheftModeActivity.startTheftMode(mContext);
   }
 
   private void stopTheftMode() {
-    try {
-      Intent launchIntent = Util.getHomeIntent();
-      launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-      launchIntent.putExtra(TheftModeActivity.STOP_THEFT_MODE, true);
-      mContext.startActivity(launchIntent);
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
+    TheftModeActivity.stopTheftMode(mContext);
   }
 
   private void dumpState() {

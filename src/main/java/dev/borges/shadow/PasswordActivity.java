@@ -1,4 +1,4 @@
-package com.afwsamples.testdpc;
+package dev.borges.shadow;
 
 import android.app.Activity;
 import android.content.SharedPreferences;
@@ -9,10 +9,11 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 import android.content.pm.PackageManager;
-import android.content.Intent;
 import android.Manifest;
 import android.hardware.fingerprint.FingerprintManager;
 import android.content.Context;
+
+import com.afwsamples.testdpc.R;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;

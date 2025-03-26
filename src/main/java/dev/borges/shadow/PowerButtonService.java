@@ -1,4 +1,4 @@
-package com.afwsamples.testdpc;
+package dev.borges.shadow;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -12,20 +12,30 @@ import android.os.IBinder;
 import android.util.Log;
 
 public class PowerButtonService extends Service {
+    private static final String TAG = "PowerButtonService";
 
     private static final String CHANNEL_ID = "PowerButtonServiceChannel";
     private PowerButtonReceiver powerButtonReceiver;
 
+    public static void startService(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent serviceIntent = new Intent(context, PowerButtonService.class);
+            context.startForegroundService(serviceIntent);
+        } else {
+            Log.e(TAG, "Error while starting PowerButtonService");
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d("PowerButtonService", "Service created");
+        Log.d(TAG, "Service created");
 
         // Create a notification channel (for foreground service)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "My Foreground Service Channel",
+                    "PowerButtonService",
                     NotificationManager.IMPORTANCE_MIN
             );
             serviceChannel.setSound(null, null);
@@ -43,12 +53,12 @@ public class PowerButtonService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d("PowerButtonService", "Service started");
+        Log.d(TAG, "Service started");
 
         // Create a foreground notification
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification notification = new Notification.Builder(this, CHANNEL_ID)
-                    .setContentTitle("My Foreground Service")
+                    .setContentTitle("PowerButtonService")
                     .setContentText("Running in the background")
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
                     .setShowWhen(false)
@@ -67,7 +77,7 @@ public class PowerButtonService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d("PowerButtonService", "Service destroyed");
+        Log.d(TAG, "Service destroyed");
         if (powerButtonReceiver != null) {
             unregisterReceiver(powerButtonReceiver);
             powerButtonReceiver = null;

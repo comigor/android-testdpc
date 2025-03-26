@@ -1,13 +1,12 @@
-package com.afwsamples.testdpc;
+package dev.borges.shadow;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.telephony.SmsMessage;
 import android.util.Log;
-import android.widget.Toast;
-import android.content.SharedPreferences;
-import static android.content.Context.MODE_PRIVATE;
+
+import com.afwsamples.testdpc.ShellCommand;
 
 import java.io.PrintWriter;
 import java.util.Arrays;

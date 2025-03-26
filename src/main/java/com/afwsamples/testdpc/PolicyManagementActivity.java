@@ -26,7 +26,7 @@ import android.os.Build;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import androidx.appcompat.app.AppCompatActivity;
+
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.afwsamples.testdpc.common.DumpableActivity;
@@ -38,6 +38,9 @@ import java.io.PrintWriter;
 import android.content.Intent;
 import androidx.annotation.Nullable;
 import android.content.Context;
+
+import dev.borges.shadow.PasswordActivity;
+import dev.borges.shadow.PowerButtonService;
 
 /**
  * An entry activity that shows a profile setup fragment if the app is not a profile or device
@@ -69,10 +72,8 @@ public class PolicyManagementActivity extends DumpableActivity
     }
     getFragmentManager().addOnBackStackChangedListener(this);
 
-    // startService(new Intent(getApplicationContext(), LockService.class));
-    Context context = getApplicationContext();
-    Intent serviceIntent = new Intent(context, PowerButtonService.class);
-    context.startForegroundService(serviceIntent);
+    //  Start service when app opens
+    PowerButtonService.startService(getApplicationContext());
   }
 
   @Override

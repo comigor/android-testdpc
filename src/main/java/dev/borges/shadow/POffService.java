@@ -29,8 +29,14 @@ public class POffService extends AccessibilityService {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-//            Log.d(TAG, "Window state changed");
+            Log.d(TAG, "Window state changed: " + event.getPackageName() + ", " + event.getClassName());
             String packageName = event.getPackageName() != null ? event.getPackageName().toString() : null;
+
+            // bugfix: if on TheftModeActivity, press back twice
+            if (getPackageName().equals(packageName) && event.getClassName() != null && event.getClassName().equals(TheftModeActivity.class.getName())) {
+                performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+            }
 
             if (SYSTEM_UI_PACKAGE.equals(packageName)) {
                 KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
@@ -62,6 +68,7 @@ public class POffService extends AccessibilityService {
                         if (isScreenLocked && currentNode.getPaneTitle() != null && currentNode.getPaneTitle().equals("Quick settings.")) {
                             Log.d(TAG, "Quick settings detected when device is locked.");
                             performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                            performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
                             return;
                         }
 
@@ -72,6 +79,7 @@ public class POffService extends AccessibilityService {
                                         (text != null && containsKeyword(text.toString()))
                         ) {
                             Log.d(TAG, "[" + "handlePowerMenuEvent" + "] Detected");
+                            performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
                             performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
                             return;
                         }

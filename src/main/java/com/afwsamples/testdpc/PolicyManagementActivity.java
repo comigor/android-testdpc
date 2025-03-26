@@ -37,10 +37,9 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import android.content.Intent;
 import androidx.annotation.Nullable;
-import android.content.Context;
 
 import dev.borges.shadow.PasswordActivity;
-import dev.borges.shadow.PowerButtonService;
+import dev.borges.shadow.PowerButtonReceiver;
 
 /**
  * An entry activity that shows a profile setup fragment if the app is not a profile or device
@@ -72,8 +71,8 @@ public class PolicyManagementActivity extends DumpableActivity
     }
     getFragmentManager().addOnBackStackChangedListener(this);
 
-    //  Start service when app opens
-    PowerButtonService.startService(getApplicationContext());
+    //  Register power button receiver when app opens
+    PowerButtonReceiver.registerReceiver(getApplicationContext());
   }
 
   @Override

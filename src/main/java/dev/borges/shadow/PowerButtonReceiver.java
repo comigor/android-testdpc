@@ -3,6 +3,7 @@ package dev.borges.shadow;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Build;
 import android.util.Log;
 import android.os.CountDownTimer;
@@ -18,6 +19,13 @@ public class PowerButtonReceiver extends BroadcastReceiver {
 
     private long lastPressTime = 0;
     private int pressCount = 0;
+
+    public static void registerReceiver(Context context) {
+        IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        PowerButtonReceiver powerButtonReceiver = new PowerButtonReceiver();
+        context.registerReceiver(powerButtonReceiver, filter);
+    }
 
     @Override
     public void onReceive(final Context context, final Intent intent) {
@@ -56,6 +64,16 @@ public class PowerButtonReceiver extends BroadcastReceiver {
                 pressCount = 1;
             }
             lastPressTime = currentTime;
+        }
+    }
+
+    public static class BootReceiver extends BroadcastReceiver {
+        private static final String TAG = "PowerButtonBootReceiver";
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.i(TAG, "Device booted (" + intent.getAction() + ")! Starting my service/task.");
+            PowerButtonReceiver.registerReceiver(context.getApplicationContext());
         }
     }
 }

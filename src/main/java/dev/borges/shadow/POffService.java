@@ -4,6 +4,7 @@ package dev.borges.shadow;
 
 import android.accessibilityservice.AccessibilityService;
 import android.annotation.TargetApi;
+import android.app.KeyguardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -23,7 +24,7 @@ public class POffService extends AccessibilityService {
     private static final String TAG = "POffService";
     private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
 
-    public static final List<String> DETECT_KEYWORDS = Arrays.asList("power off", "emergency"); // TODO(igor): make this configurable
+    public static final List<String> DETECT_KEYWORDS = Arrays.asList("power off", "restart", "emergency"); // TODO(igor): make this configurable
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -32,7 +33,12 @@ public class POffService extends AccessibilityService {
             String packageName = event.getPackageName() != null ? event.getPackageName().toString() : null;
 
             if (SYSTEM_UI_PACKAGE.equals(packageName)) {
-//                Log.d(TAG, "On systemui package screen");
+                KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+                boolean isScreenLocked = false;
+                if (keyguardManager != null) {
+                    isScreenLocked = keyguardManager.isDeviceLocked() || keyguardManager.isKeyguardLocked();
+                }
+
                 try {
                     AccessibilityNodeInfo parentNodeInfo = event.getSource();
                     if (parentNodeInfo == null) return;
@@ -51,7 +57,13 @@ public class POffService extends AccessibilityService {
                         CharSequence tooltipText = currentNode.getTooltipText();
                         CharSequence hintText = currentNode.getHintText();
                         CharSequence contentDescription = currentNode.getContentDescription();
-//                        Log.d(TAG, "strings: " + text + ", " + tooltipText + ", " + hintText + ", " + contentDescription);
+//                        Log.d(TAG, "strings: " + text + ", " + tooltipText + ", " + hintText + ", " + contentDescription + ", " + currentNode.getPaneTitle());
+
+                        if (isScreenLocked && currentNode.getPaneTitle() != null && currentNode.getPaneTitle().equals("Quick settings.")) {
+                            Log.d(TAG, "Quick settings detected when device is locked.");
+                            performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                            return;
+                        }
 
                         if (
                                 (tooltipText != null && containsKeyword(tooltipText.toString())) ||
@@ -60,12 +72,13 @@ public class POffService extends AccessibilityService {
                                         (text != null && containsKeyword(text.toString()))
                         ) {
                             Log.d(TAG, "[" + "handlePowerMenuEvent" + "] Detected");
-
                             performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                            return;
                         }
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "[" + "handlePowerMenuEvent" + "] Error: " + e);
+                    e.printStackTrace();
                 }
             }
         }
@@ -74,21 +87,22 @@ public class POffService extends AccessibilityService {
     public static void startSpecialPermissionActivity(Context context) {
         ComponentName expectedComponentName = new ComponentName(context, POffService.class);
         String enabledServicesSetting = Settings.Secure.getString(
-            context.getContentResolver(),
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                context.getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         );
 
         if (enabledServicesSetting == null || !enabledServicesSetting.contains(expectedComponentName.flattenToString())) {
+            // TODO(igor): do it in a better way
+            Toast.makeText(context, "Please grant ACCESSIBILITY permission", Toast.LENGTH_SHORT).show();
             Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-            Toast.makeText(context, "Please grant ACCESSIBILITY permission", Toast.LENGTH_SHORT).show();
         }
     }
 
     private boolean containsKeyword(String text) {
         for (String keyword : DETECT_KEYWORDS) {
-            if (text.toLowerCase().contains(keyword.toLowerCase())) {
+            if (text.equalsIgnoreCase(keyword)) {
                 return true;
             }
         }

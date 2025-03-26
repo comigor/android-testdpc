@@ -21,6 +21,7 @@
             android:textStyle="bold"
             android:layout_marginBottom="16dp"/>
 
+        <!-- TODO(igor): make these texts configurable -->
         <TextView
             android:id="@+id/contact_info"
             android:layout_width="wrap_content"
@@ -33,15 +34,15 @@
             android:gravity="center"
             android:lineSpacingExtra="8dp"/>
 
+        <EditText
+            android:id="@+id/passwordEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/contact_info"
+            android:layout_gravity="center"
+            android:inputType="textPassword"
+            android:visibility="gone"
+            android:imeOptions="actionDone"/>
     </RelativeLayout>
-
-    <EditText
-        android:id="@+id/passwordEditText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:inputType="textPassword"
-        android:visibility="gone"
-        android:imeOptions="actionDone"/>
 
 </FrameLayout>

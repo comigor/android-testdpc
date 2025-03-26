@@ -29,25 +29,18 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.Toast;
 
 import java.util.Arrays;
 
 import dev.borges.shadow.util.PasswordHelper;
+import dev.borges.shadow.util.Restrictions;
 
+@TargetApi(VERSION_CODES.N)
 public class TheftModeActivity extends Activity {
     private static final String TAG = "TheftModeActivity";
 
-    private static final String KIOSK_PREFERENCE_FILE = "kiosk_preference_file";
-
     public static final String STOP_THEFT_MODE = "dev.borges.shadow.STOP_THEFT_MODE";
-
-    private static final String[] KIOSK_USER_RESTRICTIONS = {
-            UserManager.DISALLOW_SAFE_BOOT,
-            UserManager.DISALLOW_FACTORY_RESET,
-            UserManager.DISALLOW_ADD_USER,
-            UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA,
-            UserManager.DISALLOW_ADJUST_VOLUME,
-    };
 
     private boolean backdoorTriggered = false;
 
@@ -55,6 +48,8 @@ public class TheftModeActivity extends Activity {
         try {
             DevicePolicyManagerGateway mDevicePolicyManagerGateway = new DevicePolicyManagerGatewayImpl(context);
             if (!mDevicePolicyManagerGateway.isDeviceOwnerApp()) {
+                Log.e(TAG, "Error while starting theft mode! This app is not set as device owner.");
+                Toast.makeText(context, "This app is not the device owner.", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -98,6 +93,8 @@ public class TheftModeActivity extends Activity {
 
     public void onBackdoorClicked() {
         stopLockTask();
+        mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{});
+
         setDefaultKioskPolicies(false);
         mDevicePolicyManager.setStatusBarDisabled(mAdminComponentName, false);
 
@@ -129,14 +126,40 @@ public class TheftModeActivity extends Activity {
         mDevicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         mPackageManager = getPackageManager();
 
+        // lock task
+        mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{getPackageName()});
         if (mDevicePolicyManager.isLockTaskPermitted(getPackageName())) {
             startLockTask();
         }
 
+        // set policies
         setDefaultKioskPolicies(true);
+
+        // set beautiful UI
         setContentView(R.layout.activity_theft_mode);
 
         setupGestures();
+
+        // TODO(igor): the following:
+        // Disable keyguard; TODO(igor): should I?
+//        mDevicePolicyManager.setKeyguardDisabled(mAdminComponentName, true);
+//
+//        // Disable status bar
+//        mDevicePolicyManager.setStatusBarDisabled(mAdminComponentName, true);
+//
+//        if (Build.VERSION.SDK_INT >= VERSION_CODES.N) {
+//            mDevicePolicyManager.setDeviceOwnerLockScreenInfo(mAdminComponentName, "lockinfo");
+//            mDevicePolicyManager.setLongSupportMessage(mAdminComponentName, "longigor");
+//            mDevicePolicyManager.setShortSupportMessage(mAdminComponentName, "shortigor");
+//            mDevicePolicyManager.setOrganizationName(mAdminComponentName, "orgname");
+//        }
+//
+//        if (Build.VERSION.SDK_INT >= VERSION_CODES.S) {
+//            mDevicePolicyManager.setOrganizationId("orgid");
+//        }
+//
+//        // TODO(igor): FRP
+//        mDevicePolicyManager.setFactoryResetProtectionPolicy();
     }
 
     @Override
@@ -205,42 +228,16 @@ public class TheftModeActivity extends Activity {
     private void setDefaultKioskPolicies(boolean active) {
         // restore or save previous configuration
         if (active) {
-            saveCurrentConfiguration();
-            setUserRestriction(UserManager.DISALLOW_SAFE_BOOT, active);
-            setUserRestriction(UserManager.DISALLOW_FACTORY_RESET, active);
-            setUserRestriction(UserManager.DISALLOW_ADD_USER, active);
-            setUserRestriction(UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA, active);
-            setUserRestriction(UserManager.DISALLOW_ADJUST_VOLUME, active);
+            for (String restriction : Restrictions.DEFAULT_RESTRICTIONS) {
+                setUserRestriction(restriction, true);
+            }
+            for (String restriction : Restrictions.THEFT_MODE_RESTRICTIONS) {
+                setUserRestriction(restriction, true);
+            }
         } else {
-            restorePreviousConfiguration();
-        }
-
-        // set lock task packages
-        mDevicePolicyManager.setLockTaskPackages(
-                mAdminComponentName, active ? new String[]{getPackageName()} : new String[]{});
-    }
-
-    @TargetApi(VERSION_CODES.N)
-    private void saveCurrentConfiguration() {
-        Bundle settingsBundle = mDevicePolicyManager.getUserRestrictions(mAdminComponentName);
-        SharedPreferences.Editor editor =
-                getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE).edit();
-
-        for (String userRestriction : KIOSK_USER_RESTRICTIONS) {
-            boolean currentSettingValue = settingsBundle.getBoolean(userRestriction);
-            editor.putBoolean(userRestriction, currentSettingValue);
-        }
-        editor.apply();
-    }
-
-    @TargetApi(VERSION_CODES.N)
-    private void restorePreviousConfiguration() {
-        SharedPreferences sharedPreferences =
-                getSharedPreferences(KIOSK_PREFERENCE_FILE, MODE_PRIVATE);
-
-        for (String userRestriction : KIOSK_USER_RESTRICTIONS) {
-            boolean prevSettingValue = sharedPreferences.getBoolean(userRestriction, false);
-            setUserRestriction(userRestriction, prevSettingValue);
+            for (String restriction : Restrictions.THEFT_MODE_RESTRICTIONS) {
+                setUserRestriction(restriction, false);
+            }
         }
     }
 

@@ -141,6 +141,7 @@
             android:launchMode="singleInstance"
             android:showOnLockScreen="true"
             android:taskAffinity=""
+            android:lockTaskMode="if_whitelisted"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

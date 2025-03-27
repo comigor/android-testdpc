@@ -73,8 +73,8 @@ public class PolicyManagementActivity extends DumpableActivity
     getFragmentManager().addOnBackStackChangedListener(this);
 
     //  Register power button receiver when app opens
-    PowerButtonReceiver.registerReceiver(getApplicationContext());
-    POffService.startSpecialPermissionActivity(getApplicationContext());
+//    PowerButtonReceiver.registerReceiver(getApplicationContext());
+//    POffService.startSpecialPermissionActivity(getApplicationContext());
   }
 
   @Override

@@ -18,11 +18,16 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 // TODO(igor): review TargetApi of all files and set minimal on build.gradle
-@TargetApi(Build.VERSION_CODES.O)
 public class DevicePasswordHelper {
 
     private static final String PREFS_NAME = "password-token";
     private static final String TOKEN_NAME = "token";
+
+    public static boolean hasPasswordResetToken(Context context) {
+        Context directBootContext = context.createDeviceProtectedStorageContext();
+        android.content.SharedPreferences settings = directBootContext.getSharedPreferences(PREFS_NAME, 0);
+        return settings.getString(TOKEN_NAME, null) != null;
+    }
 
     private static byte[] loadPasswordResetTokenFromPreference(Context context) {
         Context directBootContext = context.createDeviceProtectedStorageContext();
@@ -46,7 +51,7 @@ public class DevicePasswordHelper {
         editor.apply();
     }
 
-    public static void reloadTokenInformation(
+    private static void reloadTokenInformation(
             Context context,
             DevicePolicyManager devicePolicyManager,
             ComponentName adminComponentName,

@@ -3,6 +3,7 @@ package dev.borges.shadow;
 // From https://github.com/BinitDOX/FakePowerOff/blob/main/app/src/main/java/com/dox/fpoweroff/service/event/PowerMenuOverrideEvent.kt
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.annotation.TargetApi;
 import android.app.KeyguardManager;
 import android.content.ComponentName;
@@ -12,6 +13,7 @@ import android.os.Build;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
@@ -29,13 +31,14 @@ public class POffService extends AccessibilityService {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            Log.d(TAG, "Window state changed: " + event.getPackageName() + ", " + event.getClassName());
+//            Log.d(TAG, "Window state changed: " + event.getPackageName() + ", " + event.getClassName());
             String packageName = event.getPackageName() != null ? event.getPackageName().toString() : null;
 
             // bugfix: if on TheftModeActivity, press back twice
             if (getPackageName().equals(packageName) && event.getClassName() != null && event.getClassName().equals(TheftModeActivity.class.getName())) {
                 performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
                 performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                return;
             }
 
             if (SYSTEM_UI_PACKAGE.equals(packageName)) {
@@ -93,19 +96,23 @@ public class POffService extends AccessibilityService {
     }
 
     public static void startSpecialPermissionActivity(Context context) {
+        if (!isAccessibilityServiceEnabled(context)) {
+            // TODO(igor): do it in a better way: Test DPC does this, just copy
+            Toast.makeText(context, "Please grant ACCESSIBILITY permission", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        }
+    }
+
+    public static boolean isAccessibilityServiceEnabled(Context context) {
         ComponentName expectedComponentName = new ComponentName(context, POffService.class);
         String enabledServicesSetting = Settings.Secure.getString(
                 context.getContentResolver(),
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         );
 
-        if (enabledServicesSetting == null || !enabledServicesSetting.contains(expectedComponentName.flattenToString())) {
-            // TODO(igor): do it in a better way
-            Toast.makeText(context, "Please grant ACCESSIBILITY permission", Toast.LENGTH_SHORT).show();
-            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-        }
+        return enabledServicesSetting != null && enabledServicesSetting.contains(expectedComponentName.flattenToString());
     }
 
     private boolean containsKeyword(String text) {

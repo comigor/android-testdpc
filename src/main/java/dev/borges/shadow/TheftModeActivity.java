@@ -143,15 +143,13 @@ public class TheftModeActivity extends Activity {
         SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
 
         TextView title = findViewById(R.id.title);
-        title.setText(sharedPreferences.getString(SettingsHelper.THEFT_MODE_TITLE, "Esse celular é roubado!"));
+        title.setText(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY));
 
         TextView message = findViewById(R.id.contact_info);
-        message.setText(sharedPreferences.getString(SettingsHelper.THEFT_MODE_INSTRUCTIONS, "Se você achou/comprou esse celular, por favor entre em contato com o dono.\n"));
+        message.setText(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY));
 
-        String sequence = sharedPreferences.getString(SettingsHelper.DEACTIVATION_SEQUENCE, "null");
-        if (!sequence.equals("null")) {
-            correctGestureSequence = Arrays.stream(sequence.split(",")).map(String::trim).collect(Collectors.toList());
-        }
+        String sequence = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY);
+        correctGestureSequence = Arrays.stream(sequence.split(",")).map(String::trim).filter(POSSIBLE_GESTURES::contains).collect(Collectors.toList());
 
         setupGestures();
 
@@ -265,10 +263,9 @@ public class TheftModeActivity extends Activity {
 
     // ------------------------------
     private GestureDetector mGestureDetector;
-    final private List<String> mGestureSequence = new ArrayList<>();
-    private List<String> correctGestureSequence = Arrays.asList(
-            "up", "up", "down", "down", "left", "right", "left", "right"
-    );
+    private final List<String> POSSIBLE_GESTURES = Arrays.asList("up", "down", "left", "right");
+    private final List<String> mGestureSequence = new ArrayList<>();
+    private List<String> correctGestureSequence = new ArrayList<>();
 
     private EditText mPasswordEditText;
 

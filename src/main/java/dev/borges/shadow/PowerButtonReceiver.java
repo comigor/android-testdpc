@@ -14,15 +14,21 @@ import dev.borges.shadow.util.SettingsHelper;
 
 public class PowerButtonReceiver extends BroadcastReceiver {
     private static final String TAG = "PowerButtonReceiver";
+    private static PowerButtonReceiver singleton;
 
     private long lastPressTime = 0;
     private int pressCount = 0;
 
-    public static void registerReceiver(Context context) {
+    public static synchronized void registerReceiver(Context context) {
+        Log.i(TAG, "Registering PowerButtonReceiver...");
+        if (singleton == null) singleton = new PowerButtonReceiver();
+
+        try {
+            context.unregisterReceiver(singleton);
+        } catch (Exception ignored) {}
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
-        PowerButtonReceiver powerButtonReceiver = new PowerButtonReceiver();
-        context.registerReceiver(powerButtonReceiver, filter);
+        context.registerReceiver(singleton, filter);
     }
 
     @Override
@@ -31,9 +37,9 @@ public class PowerButtonReceiver extends BroadcastReceiver {
             Log.d(TAG, "Screen toggled to " + intent.getAction());
 
             SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(context);
-            int TIME_WINDOW = sharedPreferences.getInt(SettingsHelper.PRESS_TIME_WINDOW, 2000);
-            int NUMBER_OF_PRESSES = sharedPreferences.getInt(SettingsHelper.POWER_BUTTON_PRESSES, 4);
-            long DELAY_TO_START_MODE = sharedPreferences.getInt(SettingsHelper.ACTIVATION_DELAY, 10 * 60) * 1000L;
+            int TIME_WINDOW = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY));
+            int NUMBER_OF_PRESSES = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY));
+            long DELAY_TO_START_MODE = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY)) * 1000L;
 
             long currentTime = System.currentTimeMillis();
             if (currentTime - lastPressTime < TIME_WINDOW) {

@@ -24,6 +24,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
@@ -48,6 +49,7 @@ public class SettingsActivity extends AppCompatActivity {
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponentName;
     private boolean isDeviceOwner = false;
+    private boolean isAuthenticated = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,14 +63,42 @@ public class SettingsActivity extends AppCompatActivity {
 
         populateSettings();
 
-//        PowerButtonReceiver.registerReceiver(getApplicationContext());
-//        POffService.startSpecialPermissionActivity(getApplicationContext());
+        PowerButtonReceiver.registerReceiver(getApplicationContext());
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+
+        if (!isAuthenticated) {
+            Intent intent = new Intent(this, PasswordActivity.class);
+            startActivityForResult(intent, 1);
+        }
+
         populateSettings();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        // Reset authentication state when the app is paused (e.g., when sent to background)
+        isAuthenticated = false;
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        // Handle result from PasswordActivity
+        if (requestCode == 1) {
+            if (resultCode == RESULT_OK) {
+                isAuthenticated = true; // Authentication succeeded
+            } else {
+                // Handle cases where authentication failed or the user exited the password screen
+                finish(); // Close the app if authentication is not successful
+            }
+        }
     }
 
     private void populateSettings() {
@@ -194,17 +224,20 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addOrganizationNameSetting() {
-        String value = encryptedSharedPreferences.getString(SettingsHelper.ORGANIZATION_NAME, "");
-        View editText = createTextEditItem("Organization name (e.g., e-mail)", "Enter organization name", value, text -> {
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.ORGANIZATION_NAME_KEY);
+        View editText = createTextEditItem("Organization name (e.g., e-mail)", value, value, text -> {
             devicePolicyManager.setOrganizationName(adminComponentName, text);
-            encryptedSharedPreferences.edit().putString(SettingsHelper.ORGANIZATION_NAME, text).apply();
+            SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.ORGANIZATION_NAME_KEY, text);
         });
         settingsContainer.addView(editText);
     }
 
     private void addDeviceOwnerLockscreenInfoSetting() {
-        String value = devicePolicyManager.getDeviceOwnerLockScreenInfo().toString();
-        View editText = createTextEditItem("Lockscreen message (e.g., phone number)", "Information to display...", value,
+        CharSequence value = null;
+        try {
+            value = devicePolicyManager.getDeviceOwnerLockScreenInfo();
+        } catch (Exception ignored) {}
+        View editText = createTextEditItem("Lockscreen message (e.g., phone number)", "", value == null ? null : value.toString(),
                 text -> devicePolicyManager.setDeviceOwnerLockScreenInfo(adminComponentName, text));
         settingsContainer.addView(editText);
     }
@@ -234,24 +267,23 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addDetectKeywordsSetting() {
-        String defaultValue = "power off,restart,emergency";
-        String value = encryptedSharedPreferences.getString(SettingsHelper.DETECT_KEYWORDS, defaultValue);
-        View editText = createTextEditItem("Detect Keywords", "Comma-separated keywords", value,
-                text -> encryptedSharedPreferences.edit().putString(SettingsHelper.DETECT_KEYWORDS, text).apply());
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.DETECT_KEYWORDS_KEY);
+        View editText = createTextEditItem("Detect Keywords", value, value,
+                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.DETECT_KEYWORDS_KEY, text));
         settingsContainer.addView(editText);
     }
 
     private void addTheftModeTitleSetting() {
-        String value = encryptedSharedPreferences.getString(SettingsHelper.THEFT_MODE_TITLE, "Esse celular é roubado!");
-        View editText = createTextEditItem("Theft mode title", null, value,
-                text -> encryptedSharedPreferences.edit().putString(SettingsHelper.THEFT_MODE_TITLE, text).apply());
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY);
+        View editText = createTextEditItem("Theft mode title", value, value,
+                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY, text));
         settingsContainer.addView(editText);
     }
 
     private void addTheftModeInstructionsSetting() {
-        String value = encryptedSharedPreferences.getString(SettingsHelper.THEFT_MODE_INSTRUCTIONS, "Se você achou/comprou esse celular, por favor entre em contato com:\n");
-        View editText = createMultilineTextEditItem("Theft mode instructions", null, value,
-                text -> encryptedSharedPreferences.edit().putString(SettingsHelper.THEFT_MODE_INSTRUCTIONS, text).apply());
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY);
+        View editText = createMultilineTextEditItem("Theft mode instructions", value, value,
+                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY, text));
         settingsContainer.addView(editText);
     }
 
@@ -263,30 +295,30 @@ public class SettingsActivity extends AppCompatActivity {
 //    }
 
     private void addPowerButtonPressesSetting() {
-        int value = encryptedSharedPreferences.getInt(SettingsHelper.POWER_BUTTON_PRESSES, 4);
-        View editText = createNumberEditItem("Number of power button presses to activate", null, value,
-                v -> encryptedSharedPreferences.edit().putInt(SettingsHelper.POWER_BUTTON_PRESSES, v).apply());
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY);
+        View editText = createNumberEditItem("Number of power button presses to activate", value, value,
+                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY, v));
         settingsContainer.addView(editText);
     }
 
     private void addPressTimeWindowSetting() {
-        int value = encryptedSharedPreferences.getInt(SettingsHelper.PRESS_TIME_WINDOW, 2000);
-        View editText = createNumberEditItem("Time window between power button presses (milliseconds)", null, value,
-                v -> encryptedSharedPreferences.edit().putInt(SettingsHelper.PRESS_TIME_WINDOW, v).apply());
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY);
+        View editText = createNumberEditItem("Time window between power button presses (milliseconds)", value, value,
+                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY, v));
         settingsContainer.addView(editText);
     }
 
     private void addActivationDelaySetting() {
-        int value = encryptedSharedPreferences.getInt(SettingsHelper.ACTIVATION_DELAY, 5);
-        View editText = createNumberEditItem("Time delay to activate theft mode (seconds)", null, value,
-                v -> encryptedSharedPreferences.edit().putInt(SettingsHelper.ACTIVATION_DELAY, v).apply());
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY);
+        View editText = createNumberEditItem("Time delay to activate theft mode (seconds)", value, value,
+                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY, v));
         settingsContainer.addView(editText);
     }
 
     private void addDeactivationSequenceSetting() {
-        String value = encryptedSharedPreferences.getString(SettingsHelper.DEACTIVATION_SEQUENCE, "up,up,down,down,right");
-        View editText = createTextEditItem("Deactivation sequence (e.g., up,up,down,down)", null, value,
-                text -> encryptedSharedPreferences.edit().putString(SettingsHelper.DEACTIVATION_SEQUENCE, text).apply());
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY);
+        View editText = createTextEditItem("Deactivation sequence (e.g., up,up,down,down)", value, value,
+                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY, v));
         settingsContainer.addView(editText);
     }
 
@@ -349,10 +381,6 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private View createTextEditItem(String label, String hint, String initialValue, java.util.function.Consumer<String> onTextChanged) {
-        return createTextEditItem(label, hint, initialValue, onTextChanged, InputType.TYPE_CLASS_TEXT);
-    }
-
-    private View createTextEditItem(String label, String hint, String initialValue, java.util.function.Consumer<String> onTextChanged, int inputType) {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -365,11 +393,11 @@ public class SettingsActivity extends AppCompatActivity {
         EditText editText = new EditText(this);
         editText.setHint(hint);
         editText.setText(initialValue);
-        editText.setInputType(inputType);
+        editText.setInputType(InputType.TYPE_CLASS_TEXT);
         editText.addTextChangedListener(new TextWatcherAdapter() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                onTextChanged.accept(s.toString());
+                onTextChanged.accept(s == null ? null : s.toString());
             }
         });
         layout.addView(editText);
@@ -395,14 +423,14 @@ public class SettingsActivity extends AppCompatActivity {
         editText.addTextChangedListener(new TextWatcherAdapter() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                onTextChanged.accept(s.toString());
+                onTextChanged.accept(s == null ? null : s.toString());
             }
         });
         layout.addView(editText);
         return layout;
     }
 
-    private View createNumberEditItem(String label, String hint, Integer initialValue, java.util.function.Consumer<Integer> onTextChanged) {
+    private View createNumberEditItem(String label, String hint, String initialValue, java.util.function.Consumer<String> onTextChanged) {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -414,12 +442,12 @@ public class SettingsActivity extends AppCompatActivity {
 
         EditText editText = new EditText(this);
         editText.setHint(hint);
-        editText.setText(String.format(Locale.ENGLISH, "%d", initialValue));
+            editText.setText(initialValue);
         editText.setInputType(InputType.TYPE_CLASS_NUMBER);
         editText.addTextChangedListener(new TextWatcherAdapter() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                onTextChanged.accept(SettingsHelper.parseInt(s.toString(), 0));
+                onTextChanged.accept(s == null ? null : s.toString());
             }
         });
         layout.addView(editText);

@@ -64,7 +64,7 @@ public class POffService extends AccessibilityService {
                     List<AccessibilityNodeInfo> nodeQueue = new ArrayList<>();
                     nodeQueue.add(parentNodeInfo);
 
-                    String[] keywords = encryptedSharedPreferences.getString(SettingsHelper.DETECT_KEYWORDS, DEFAULT_KEYWORDS).split(",");
+                    String[] keywords = encryptedSharedPreferences.getString(SettingsHelper.DETECT_KEYWORDS_KEY, DEFAULT_KEYWORDS).split(",");
 
                     while (!nodeQueue.isEmpty()) {
                         AccessibilityNodeInfo currentNode = nodeQueue.remove(0);

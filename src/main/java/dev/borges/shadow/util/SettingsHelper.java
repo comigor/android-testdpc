@@ -14,7 +14,6 @@ public abstract class SettingsHelper {
     private static final String TAG = "SettingsHelper";
 
     public static final String ORGANIZATION_NAME = "organization_name";
-    public static final String LOCKSCREEN_INFO = "lockscreen_info";
     public static final String DETECT_KEYWORDS = "detect_keywords";
     public static final String THEFT_MODE_TITLE = "theft_mode_title";
     public static final String THEFT_MODE_INSTRUCTIONS = "theft_mode_instructions";
@@ -44,7 +43,6 @@ public abstract class SettingsHelper {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
-            Log.e(TAG, "Error parsing integer value: " + e.getMessage());
             return defaultValue;
         }
     }

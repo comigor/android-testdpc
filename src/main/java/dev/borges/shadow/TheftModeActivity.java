@@ -7,6 +7,7 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
@@ -27,12 +28,15 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import dev.borges.shadow.util.PasswordHelper;
 import dev.borges.shadow.util.Restrictions;
+import dev.borges.shadow.util.SettingsHelper;
 
 @TargetApi(VERSION_CODES.N)
 public class TheftModeActivity extends Activity {
@@ -135,6 +139,19 @@ public class TheftModeActivity extends Activity {
 
         // set beautiful UI
         setContentView(R.layout.activity_theft_mode);
+
+        SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
+
+        TextView title = findViewById(R.id.title);
+        title.setText(sharedPreferences.getString(SettingsHelper.THEFT_MODE_TITLE, "Esse celular é roubado!"));
+
+        TextView message = findViewById(R.id.contact_info);
+        message.setText(sharedPreferences.getString(SettingsHelper.THEFT_MODE_INSTRUCTIONS, "Se você achou/comprou esse celular, por favor entre em contato com o dono.\n"));
+
+        String sequence = sharedPreferences.getString(SettingsHelper.DEACTIVATION_SEQUENCE, "null");
+        if (!sequence.equals("null")) {
+            correctGestureSequence = Arrays.stream(sequence.split(",")).map(String::trim).collect(Collectors.toList());
+        }
 
         setupGestures();
 
@@ -249,7 +266,7 @@ public class TheftModeActivity extends Activity {
     // ------------------------------
     private GestureDetector mGestureDetector;
     final private List<String> mGestureSequence = new ArrayList<>();
-    private static final List<String> CORRECT_GESTURE_SEQUENCE = Arrays.asList(
+    private List<String> correctGestureSequence = Arrays.asList(
             "up", "up", "down", "down", "left", "right", "left", "right"
     );
 
@@ -310,11 +327,11 @@ public class TheftModeActivity extends Activity {
             mGestureSequence.subList(0, mGestureSequence.size() - 20).clear();
         }
 
-        int correctSequenceSize = CORRECT_GESTURE_SEQUENCE.size();
+        int correctSequenceSize = correctGestureSequence.size();
         if (mGestureSequence.size() >= correctSequenceSize) {
             List<String> lastGestures = mGestureSequence.subList(mGestureSequence.size() - correctSequenceSize, mGestureSequence.size());
 
-            if (lastGestures.equals(CORRECT_GESTURE_SEQUENCE)) {
+            if (lastGestures.equals(correctGestureSequence)) {
                 mPasswordEditText.setVisibility(View.VISIBLE);
                 mPasswordEditText.requestFocus();
                 mGestureSequence.clear();

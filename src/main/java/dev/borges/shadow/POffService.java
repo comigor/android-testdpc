@@ -3,30 +3,39 @@ package dev.borges.shadow;
 // From https://github.com/BinitDOX/FakePowerOff/blob/main/app/src/main/java/com/dox/fpoweroff/service/event/PowerMenuOverrideEvent.kt
 
 import android.accessibilityservice.AccessibilityService;
-import android.accessibilityservice.AccessibilityServiceInfo;
 import android.annotation.TargetApi;
 import android.app.KeyguardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
+import com.afwsamples.testdpc.DeviceAdminReceiver;
+
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+
+import dev.borges.shadow.util.SettingsHelper;
 
 @TargetApi(Build.VERSION_CODES.P)
 public class POffService extends AccessibilityService {
     private static final String TAG = "POffService";
     private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
+    private static final String DEFAULT_KEYWORDS = "power off,restart,emergency";
 
-    public static final List<String> DETECT_KEYWORDS = Arrays.asList("power off", "restart", "emergency"); // TODO(igor): make this configurable
+    private SharedPreferences encryptedSharedPreferences;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        encryptedSharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
+    }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -55,6 +64,8 @@ public class POffService extends AccessibilityService {
                     List<AccessibilityNodeInfo> nodeQueue = new ArrayList<>();
                     nodeQueue.add(parentNodeInfo);
 
+                    String[] keywords = encryptedSharedPreferences.getString(SettingsHelper.DETECT_KEYWORDS, DEFAULT_KEYWORDS).split(",");
+
                     while (!nodeQueue.isEmpty()) {
                         AccessibilityNodeInfo currentNode = nodeQueue.remove(0);
                         if (currentNode == null) continue;
@@ -76,10 +87,10 @@ public class POffService extends AccessibilityService {
                         }
 
                         if (
-                                (tooltipText != null && containsKeyword(tooltipText.toString())) ||
-                                        (hintText != null && containsKeyword(hintText.toString())) ||
-                                        (contentDescription != null && containsKeyword(contentDescription.toString())) ||
-                                        (text != null && containsKeyword(text.toString()))
+                                (tooltipText != null && containsKeyword(tooltipText.toString(), keywords)) ||
+                                        (hintText != null && containsKeyword(hintText.toString(), keywords)) ||
+                                        (contentDescription != null && containsKeyword(contentDescription.toString(), keywords)) ||
+                                        (text != null && containsKeyword(text.toString(), keywords))
                         ) {
                             Log.d(TAG, "[" + "handlePowerMenuEvent" + "] Detected");
                             performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
@@ -95,9 +106,10 @@ public class POffService extends AccessibilityService {
         }
     }
 
-    public static void startSpecialPermissionActivity(Context context) {
-        if (!isAccessibilityServiceEnabled(context)) {
-            // TODO(igor): do it in a better way: Test DPC does this, just copy
+    public static void enableAccessibilityService(Context context) {
+        final ComponentName mAdminComponentName = DeviceAdminReceiver.getComponentName(context);
+        if (!isAccessibilityServiceEnabled(context) && mAdminComponentName != null) {
+            // TODO(igor): do this in a better way
             Toast.makeText(context, "Please grant ACCESSIBILITY permission", Toast.LENGTH_SHORT).show();
             Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -115,9 +127,9 @@ public class POffService extends AccessibilityService {
         return enabledServicesSetting != null && enabledServicesSetting.contains(expectedComponentName.flattenToString());
     }
 
-    private boolean containsKeyword(String text) {
-        for (String keyword : DETECT_KEYWORDS) {
-            if (text.equalsIgnoreCase(keyword)) {
+    private boolean containsKeyword(String text, String[] keywords) {
+        for (String keyword : keywords) {
+            if (text.equalsIgnoreCase(keyword.trim())) {
                 return true;
             }
         }

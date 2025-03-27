@@ -28,8 +28,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.security.crypto.EncryptedSharedPreferences;
-import androidx.security.crypto.MasterKeys;
 
 import com.afwsamples.testdpc.DeviceAdminReceiver;
 import com.afwsamples.testdpc.PolicyManagementActivity;
@@ -63,8 +61,14 @@ public class SettingsActivity extends AppCompatActivity {
 
         populateSettings();
 
-        PowerButtonReceiver.registerReceiver(getApplicationContext());
+//        PowerButtonReceiver.registerReceiver(getApplicationContext());
 //        POffService.startSpecialPermissionActivity(getApplicationContext());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        populateSettings();
     }
 
     private void populateSettings() {
@@ -75,35 +79,37 @@ public class SettingsActivity extends AppCompatActivity {
         // # Permissions & Requirements
         addTitle("Permissions & Requirements");
         addDeviceOwnerSetting();
-        addSmsPermissionSetting();
+        if (isDeviceOwner) {
+            addSmsPermissionSetting();
 
-        // # Protection Setup
-        addTitle("Protection Setup");
-        addDevicePasswordTokenSetting();
-        addBackupServicesSetting();
-        addLocationEnabledSetting();
-        addOrganizationNameSetting();
-        addDeviceOwnerLockscreenInfoSetting();
-        addFRPSetting();
-        addUserRestrictionsSetting();
+            // # Protection Setup
+            addTitle("Protection Setup");
+            addDevicePasswordTokenSetting();
+            addBackupServicesSetting();
+            addLocationEnabledSetting();
+            addOrganizationNameSetting();
+            addDeviceOwnerLockscreenInfoSetting();
+            addFRPSetting();
+            addUserRestrictionsSetting();
 
-        // # Power Off Prevention
-        addTitle("Power Off Prevention");
-        addAccessibilityServiceSetting();
-        addDetectKeywordsSetting();
+            // # Power Off Prevention
+            addTitle("Power Off Prevention");
+            addAccessibilityServiceSetting();
+            addDetectKeywordsSetting();
 
-        // # Theft Mode settings
-        addTitle("Theft Mode settings");
-        addTheftModeTitleSetting();
-        addTheftModeInstructionsSetting();
+            // # Theft Mode settings
+            addTitle("Theft Mode settings");
+            addTheftModeTitleSetting();
+            addTheftModeInstructionsSetting();
 //        addNewDevicePasswordSetting();
-        addPowerButtonPressesSetting();
-        addPressTimeWindowSetting();
-        addActivationDelaySetting();
-        addDeactivationSequenceSetting();
+            addPowerButtonPressesSetting();
+            addPressTimeWindowSetting();
+            addActivationDelaySetting();
+            addDeactivationSequenceSetting();
 
-        addTitle("Extras / dev");
-        addTestDPCSetting();
+            addTitle("Extras / dev");
+            addTestDPCSetting();
+        }
     }
 
     private void addTitle(String title) {
@@ -130,8 +136,8 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addDevicePasswordTokenSetting() {
-        boolean isChecked = isDeviceOwner && DevicePasswordHelper.hasPasswordResetToken(this);
-        View switchCompat = createSwitchItem("Device password token", isChecked, isDeviceOwner, (buttonView, newChecked) -> {
+        boolean isChecked = DevicePasswordHelper.hasPasswordResetToken(this);
+        View switchCompat = createSwitchItem("Device password token", isChecked, true, (buttonView, newChecked) -> {
             if (newChecked) {
                 DevicePasswordHelper.createNewPasswordToken(this, devicePolicyManager, adminComponentName, (token, status) -> {});
             } else {
@@ -143,8 +149,8 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addBackupServicesSetting() {
-        boolean isChecked = isDeviceOwner && devicePolicyManager.isBackupServiceEnabled(adminComponentName);
-        View switchCompat = createSwitchItem("Enable backup services", isChecked, isDeviceOwner, (buttonView, newChecked) -> {
+        boolean isChecked = devicePolicyManager.isBackupServiceEnabled(adminComponentName);
+        View switchCompat = createSwitchItem("Enable backup services", isChecked, true, (buttonView, newChecked) -> {
             devicePolicyManager.setBackupServiceEnabled(adminComponentName, newChecked);
         });
         settingsContainer.addView(createRow(switchCompat, null));
@@ -168,7 +174,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void addLocationEnabledSetting() {
         boolean isChecked = isLocationEnabled(this);
-        View switchCompat = createSwitchItem("Set location enabled", isChecked, isDeviceOwner, (buttonView, newChecked) -> {
+        View switchCompat = createSwitchItem("Set location enabled", isChecked, true, (buttonView, newChecked) -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 devicePolicyManager.setLocationEnabled(adminComponentName, newChecked);
             } else {
@@ -189,15 +195,17 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void addOrganizationNameSetting() {
         String value = encryptedSharedPreferences.getString(SettingsHelper.ORGANIZATION_NAME, "");
-        View editText = createTextEditItem("Organization name", "Enter organization name", value,
-                text -> encryptedSharedPreferences.edit().putString(SettingsHelper.ORGANIZATION_NAME, text).apply());
+        View editText = createTextEditItem("Organization name (e.g., e-mail)", "Enter organization name", value, text -> {
+            devicePolicyManager.setOrganizationName(adminComponentName, text);
+            encryptedSharedPreferences.edit().putString(SettingsHelper.ORGANIZATION_NAME, text).apply();
+        });
         settingsContainer.addView(editText);
     }
 
     private void addDeviceOwnerLockscreenInfoSetting() {
-        String value = encryptedSharedPreferences.getString(SettingsHelper.LOCKSCREEN_INFO, "");
-        View editText = createTextEditItem("Device owner lockscreen info", "Information to display...", value,
-                text -> encryptedSharedPreferences.edit().putString(SettingsHelper.LOCKSCREEN_INFO, text).apply());
+        String value = devicePolicyManager.getDeviceOwnerLockScreenInfo().toString();
+        View editText = createTextEditItem("Lockscreen message (e.g., phone number)", "Information to display...", value,
+                text -> devicePolicyManager.setDeviceOwnerLockScreenInfo(adminComponentName, text));
         settingsContainer.addView(editText);
     }
 
@@ -215,10 +223,13 @@ public class SettingsActivity extends AppCompatActivity {
     private void addAccessibilityServiceSetting() {
         boolean isEnabled = POffService.isAccessibilityServiceEnabled(this);
         View switchCompat = createSwitchItem("Accessibility Service", isEnabled, true, (buttonView, isChecked) -> {
-            // In a real scenario, you might want to disable other POff features here
-            Toast.makeText(this, "Power Off Prevention features would be disabled/enabled", Toast.LENGTH_SHORT).show();
+            POffService.enableAccessibilityService(this);
+            populateSettings();
         });
-        View row = createRow(switchCompat, () -> POffService.startSpecialPermissionActivity(this));
+        View row = createRow(switchCompat, () -> {
+            POffService.enableAccessibilityService(this);
+            populateSettings();
+        });
         settingsContainer.addView(row);
     }
 
@@ -282,6 +293,11 @@ public class SettingsActivity extends AppCompatActivity {
     private void addTestDPCSetting() {
         View textView = createClickableTextItem("Test DPC", () -> startActivity(new Intent(this, PolicyManagementActivity.class)));
         settingsContainer.addView(textView);
+    }
+
+    @Override
+    public void onBackPressed() {
+        finish();
     }
 
     //region Helper Methods for UI Elements

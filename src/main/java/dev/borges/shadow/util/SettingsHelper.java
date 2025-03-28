@@ -23,6 +23,8 @@ public abstract class SettingsHelper {
     public static final String PRESS_TIME_WINDOW_KEY = "press_time_window";
     public static final String ACTIVATION_DELAY_KEY = "activation_delay";
     public static final String DEACTIVATION_SEQUENCE_KEY = "deactivation_sequence";
+    public static final String APP_UPDATE_URL = "app_update_url";
+    public static final String FRP_ACCOUNT_IDS = "frp_account_ids";
 
     public static final Map<String, String> DEFAULTS = Map.of(
             ORGANIZATION_NAME_KEY, "",
@@ -32,7 +34,9 @@ public abstract class SettingsHelper {
             POWER_BUTTON_PRESSES_KEY, "4",
             PRESS_TIME_WINDOW_KEY, "2000",
             ACTIVATION_DELAY_KEY, "600",
-            DEACTIVATION_SEQUENCE_KEY, "up,up,down,down,right"
+            DEACTIVATION_SEQUENCE_KEY, "up,up,down,down,right",
+            APP_UPDATE_URL, "https://public.borges.dev/shadow/latest.apk",
+            FRP_ACCOUNT_IDS, ""
     );
 
     public static String getSetting(SharedPreferences sharedPreferences, String key) {

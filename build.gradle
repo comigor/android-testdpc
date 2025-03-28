@@ -9,7 +9,7 @@ subprojects {
         if (project.plugins.hasPlugin("com.android.library")) {
             project.android {
                 defaultConfig {
-                    minSdkVersion 21
+                    minSdkVersion 26
                 }
                 compileSdkVersion 35
                 buildToolsVersion "36.0.0"
@@ -66,7 +66,7 @@ ext {
     // exactly 1 digiT
     versionMinor = 0
     // exactly 2 digits
-    versionBuild = 18
+    versionBuild = 19
 }
 
 android {

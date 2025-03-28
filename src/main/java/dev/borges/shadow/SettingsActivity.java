@@ -3,6 +3,7 @@ package dev.borges.shadow;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.FactoryResetProtectionPolicy;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -12,6 +13,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -42,7 +44,10 @@ import dev.borges.shadow.util.DevicePasswordHelper;
 import dev.borges.shadow.util.SettingsHelper;
 import dev.borges.shadow.util.UpdateAppHelper;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public class SettingsActivity extends AppCompatActivity {
 
@@ -124,7 +129,6 @@ public class SettingsActivity extends AppCompatActivity {
             addLocationEnabledSetting();
             addOrganizationNameSetting();
             addDeviceOwnerLockscreenInfoSetting();
-            addFRPSetting();
             addUserRestrictionsSetting();
 
             // # Power Off Prevention
@@ -142,8 +146,15 @@ public class SettingsActivity extends AppCompatActivity {
             addActivationDelaySetting();
             addDeactivationSequenceSetting();
 
+            // # Factory Reset Protection (FRP)
+            addTitle("Factory Reset Protection (FRP)");
+            addFRPDescriptionSetting();
+            addFRPAccountsSetting();
+            addFRPToggleSetting();
+
             addTitle("Extras / dev");
             addTestDPCSetting();
+            addAppUpdateUrl();
             updateAppSetting();
         }
     }
@@ -248,10 +259,52 @@ public class SettingsActivity extends AppCompatActivity {
         settingsContainer.addView(editText);
     }
 
-    private void addFRPSetting() {
-        // https://developers.google.com/people/api/rest/v1/people/get?apix_params=%7B%22resourceName%22%3A%22people%2Fme%22%2C%22personFields%22%3A%22metadata%22%7D
-        TextView textView = createClickableTextItem("Set Factory Reset Protection", () -> startActivity(new Intent(this, PasswordActivity.class)));
+    private void addFRPDescriptionSetting() {
+        View textView = createClickableTextItem("This will prevent all Google accounts other than the listed ones from being able to access your device, even after factory reset. USE WITH CAUTION.", () -> {
+            Uri webpage = Uri.parse("https://developers.google.com/people/api/rest/v1/people/get?apix_params=%7B%22resourceName%22%3A%22people%2Fme%22%2C%22personFields%22%3A%22metadata%22%7D");
+            Intent intent = new Intent(Intent.ACTION_VIEW, webpage);
+            if (intent.resolveActivity(getPackageManager()) != null) {
+                startActivity(intent);
+            } else {
+                Toast.makeText(this, "No web browser app found.", android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
         settingsContainer.addView(textView);
+    }
+
+    private void addFRPAccountsSetting() {
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS);
+        View editText = createTextEditItem("Google Account IDs (comma-separated)", value, value, text -> {
+            devicePolicyManager.setOrganizationName(adminComponentName, text);
+            SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS, text);
+        });
+        settingsContainer.addView(editText);
+    }
+
+    private void addFRPToggleSetting() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            FactoryResetProtectionPolicy policy = devicePolicyManager.getFactoryResetProtectionPolicy(adminComponentName);
+            boolean isChecked = policy != null && policy.isFactoryResetProtectionEnabled();
+
+            View switchCompat = createSwitchItem("Enable FRP", isChecked, true, (buttonView, newChecked) -> {
+                String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS);
+                List<String> accountIds = Arrays.stream(value.split(",")).map(String::trim).filter(s -> s.length() == 21).collect(Collectors.toList());
+
+                if (accountIds.isEmpty()) {
+                    Log.i(TAG, "[FRP] No valid Google Account IDs provided");
+                    Toast.makeText(this, "No valid Google Account IDs provided", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                devicePolicyManager.setFactoryResetProtectionPolicy(
+                    adminComponentName,
+                    new FactoryResetProtectionPolicy.Builder()
+                            .setFactoryResetProtectionAccounts(accountIds)
+                            .setFactoryResetProtectionEnabled(newChecked)
+                            .build());
+            });
+            settingsContainer.addView(createRow(switchCompat, null));
+        }
     }
 
     private void addUserRestrictionsSetting() {
@@ -333,10 +386,18 @@ public class SettingsActivity extends AppCompatActivity {
         settingsContainer.addView(textView);
     }
 
+    private void addAppUpdateUrl() {
+        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
+        View editText = createTextEditItem("App update URL", value, value,
+                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL, text));
+        settingsContainer.addView(editText);
+    }
+
     private void updateAppSetting() {
         registerReceiver(mInstallReceiver, new IntentFilter(PackageInstallationUtils.ACTION_INSTALL_COMPLETE), Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ? Context.RECEIVER_EXPORTED : Context.RECEIVER_VISIBLE_TO_INSTANT_APPS);
 
-        View textView = createClickableTextItem("Update app", () -> UpdateAppHelper.downloadAndInstall(this, "http://10.0.0.99:8000/build2/outputs/apk/debug/Test%20DPC-debug.apk"));
+        String url = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
+        View textView = createClickableTextItem("Update app", () -> UpdateAppHelper.downloadAndInstall(this, url));
         settingsContainer.addView(textView);
     }
 

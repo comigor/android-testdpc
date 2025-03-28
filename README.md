@@ -5,12 +5,13 @@ Test Device Policy Control (Test DPC) App
 - [x] properly sign apk (manually, but ok)
 - [x] public server with apk -> https://public.borges.dev/shadow/latest.apk
 - [x] qrcode to provision
-- [ ] auto-update app
-- [ ] button to remove self device ownership
+- [?] auto-update app
+<!-- - [ ] button to remove self device ownership -->
 - [ ] commands via sms/other(?) (check locked boot)
 - [ ] redo user restrictions
-- [ ] CI
-- [ ] factory reset protection (and test it)
+- [x] "release" script
+- [ ] CI (?)
+- [ ] factory reset protection (and test it) // https://developers.google.com/people/api/rest/v1/people/get?apix_params=%7B%22resourceName%22%3A%22people%2Fme%22%2C%22personFields%22%3A%22metadata%22%7D
 - [ ] bugfix: status bar/restrictions back on stop theft
 - [ ] owntracks integration on theft mode (https://owntracks.org/booklet/features/android/#automation-via-tasker-automagic-etc)
 

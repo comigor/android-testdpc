@@ -94,13 +94,14 @@ public class TheftModeActivity extends Activity {
     }
 
     public void onBackdoorClicked() {
-        stopLockTask();
-        mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{});
+        backdoorTriggered = true;
 
-        setDefaultKioskPolicies(false);
         mDevicePolicyManager.setStatusBarDisabled(mAdminComponentName, false);
 
-        backdoorTriggered = true;
+        mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{});
+        stopLockTask();
+
+        setDefaultKioskPolicies(false);
 
         // clear default home activity
         mDevicePolicyManager.clearPackagePersistentPreferredActivities(mAdminComponentName, getPackageName());

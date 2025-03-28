@@ -1,6 +1,19 @@
 Test Device Policy Control (Test DPC) App
 =========================================
 
+## TODO
+- [x] properly sign apk (manually, but ok)
+- [x] public server with apk -> https://public.borges.dev/shadow/latest.apk
+- [x] qrcode to provision
+- [ ] auto-update app
+- [ ] button to remove self device ownership
+- [ ] commands via sms/other(?) (check locked boot)
+- [ ] redo user restrictions
+- [ ] CI
+- [ ] factory reset protection (and test it)
+- [ ] bugfix: status bar/restrictions back on stop theft
+- [ ] owntracks integration on theft mode (https://owntracks.org/booklet/features/android/#automation-via-tasker-automagic-etc)
+
 Test DPC is an app designed to help EMMs, ISVs, and OEMs to test their applications and platforms in a Android enterprise managed profile (i.e. work profile). It serves as both a sample Device Policy Controller and a testing application to flex the APIs available for Android enterprise. It supports devices running Android 5.0 Lollipop or later.
 
 See the [documentation](https://developer.android.com/work/index.html) to learn more about Android in the enterprise.
@@ -24,17 +37,20 @@ You can find various kinds of provisioning methods [here](https://developers.goo
 1. Factory reset your device and tap the welcome screen in setup wizard 6 times.
 1. On Android O or older, the setup wizard prompts the user to connect to the Internet so the setup wizard can download a QR code reader.
    Android P and newer devices already have the QR code reader available.
-1. Generate a QR code with the content:
+1. Generate a QR code with the content: `cat latest.apk | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '='`
    ```
     {
-    	"android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.afwsamples.testdpc/com.afwsamples.testdpc.DeviceAdminReceiver",
-    	"android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": "gJD2YwtOiWJHkSMkkIfLRlj-quNqG1fb6v100QmzM9w=",
-    	"android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://testdpc-latest-apk.appspot.com"
+    	"android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminReceiver",
+    	"android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": "3jLkwqxXMTwERmTeMCWm289-re7nEdd6Nci9eVO9lsM",
+    	"android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://public.borges.dev/shadow/latest.apk"
     }
    ```
    or use this pre-made QR code:  
    ![testdpc_provisioning](qrcode.png)
-1. Scan the QR code and follow onscreen instructions
+
+1. Scan the QR code and follow onscreen instructions:
+2. Connect to WiFi
+3. "Use for work only"
 
 #### Note
 
@@ -52,7 +68,7 @@ Replace the link used for `PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION` 
 *   Run the `adb` command:
 
     ```console
-    adb shell dpm set-device-owner com.afwsamples.testdpc/.DeviceAdminReceiver
+    adb shell dpm set-device-owner dev.borges.shadow/.DeviceAdminReceiver
     ```
 
 #### Profile Owner - Personal device (PO - BYOD)

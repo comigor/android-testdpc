@@ -279,7 +279,6 @@ public class EnableCosuActivity extends Activity {
           int result =
               intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
           String packageName = intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME);
-          if (CosuUtils.DEBUG)
             Log.d(
                 CosuUtils.TAG,
                 "PackageInstallerCallback: result=" + result + " packageName=" + packageName);
@@ -294,6 +293,7 @@ public class EnableCosuActivity extends Activity {
               }
             case PackageInstaller.STATUS_SUCCESS:
               {
+                Log.i(CosuUtils.TAG, "Install success");
                 mHandler.sendMessage(
                     mHandler.obtainMessage(CosuUtils.MSG_INSTALL_COMPLETE, packageName));
               }

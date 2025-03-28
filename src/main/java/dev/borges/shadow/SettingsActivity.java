@@ -3,10 +3,13 @@ package dev.borges.shadow;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.app.admin.DevicePolicyManager;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.os.Build;
@@ -33,9 +36,11 @@ import androidx.core.content.ContextCompat;
 import com.afwsamples.testdpc.DeviceAdminReceiver;
 import com.afwsamples.testdpc.PolicyManagementActivity;
 import com.afwsamples.testdpc.R;
+import com.afwsamples.testdpc.common.PackageInstallationUtils;
 
 import dev.borges.shadow.util.DevicePasswordHelper;
 import dev.borges.shadow.util.SettingsHelper;
+import dev.borges.shadow.util.UpdateAppHelper;
 
 import java.util.Locale;
 
@@ -139,6 +144,7 @@ public class SettingsActivity extends AppCompatActivity {
 
             addTitle("Extras / dev");
             addTestDPCSetting();
+            updateAppSetting();
         }
     }
 
@@ -326,6 +332,29 @@ public class SettingsActivity extends AppCompatActivity {
         View textView = createClickableTextItem("Test DPC", () -> startActivity(new Intent(this, PolicyManagementActivity.class)));
         settingsContainer.addView(textView);
     }
+
+    private void updateAppSetting() {
+        registerReceiver(mInstallReceiver, new IntentFilter(PackageInstallationUtils.ACTION_INSTALL_COMPLETE), Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ? Context.RECEIVER_EXPORTED : Context.RECEIVER_VISIBLE_TO_INSTANT_APPS);
+
+        View textView = createClickableTextItem("Update app", () -> UpdateAppHelper.downloadAndInstall(this, "http://10.0.0.99:8000/build2/outputs/apk/debug/Test%20DPC-debug.apk"));
+        settingsContainer.addView(textView);
+    }
+
+    final private BroadcastReceiver mInstallReceiver =
+        new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (!PackageInstallationUtils.ACTION_INSTALL_COMPLETE.equals(intent.getAction())) {
+                    return;
+                }
+
+                int result = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+                String packageName = intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME);
+                Log.d(TAG, "PackageInstallerCallback: result=" + result + " packageName=" + packageName);
+
+                unregisterReceiver(mInstallReceiver);
+            }
+        };
 
     @Override
     public void onBackPressed() {

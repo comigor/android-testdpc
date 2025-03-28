@@ -80,6 +80,7 @@ public class PasswordActivity extends Activity {
 
         String passwordHash = PasswordHelper.hashPassword(password);
         PasswordHelper.storePasswordHash(this, passwordHash);
+        setResult(RESULT_OK);
         finish();
     }
 
@@ -115,6 +116,7 @@ public class PasswordActivity extends Activity {
             PasswordHelper.storePasswordHash(this, passwordHash);
 
             Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show();
+            setResult(RESULT_OK);
             finish();
         } else {
             Toast.makeText(this, "Current password is incorrect!", Toast.LENGTH_SHORT).show();

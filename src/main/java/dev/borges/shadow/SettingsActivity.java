@@ -153,9 +153,9 @@ public class SettingsActivity extends AppCompatActivity {
             addFRPToggleSetting();
 
             addTitle("Extras / dev");
-            addTestDPCSetting();
             addAppUpdateUrl();
             updateAppSetting();
+            addTestDPCSetting();
         }
     }
 

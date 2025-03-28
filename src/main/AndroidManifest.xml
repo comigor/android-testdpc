@@ -355,7 +355,7 @@
 
         <provider
             android:name="com.afwsamples.testdpc.UserIconContentProvider"
-            android:authorities="com.afwsamples.testdpc.usericoncontentprovider"
+            android:authorities="dev.borges.shadow.usericoncontentprovider"
             android:exported="true"
             android:grantUriPermissions="true"></provider>
 

@@ -38,7 +38,6 @@ import dev.borges.shadow.util.PasswordHelper;
 import dev.borges.shadow.util.Restrictions;
 import dev.borges.shadow.util.SettingsHelper;
 
-@TargetApi(VERSION_CODES.N)
 public class TheftModeActivity extends Activity {
     private static final String TAG = "TheftModeActivity";
 
@@ -59,20 +58,20 @@ public class TheftModeActivity extends Activity {
             final DevicePolicyManager mDevicePolicyManager = context.getSystemService(DevicePolicyManager.class);
             final PackageManager mPackageManager = context.getPackageManager();
 
-            final ComponentName customLauncher = new ComponentName(context.getPackageName(), TheftModeActivity.class.getName());
+            Log.i(TAG, "Disabling status bar");
+            mDevicePolicyManager.setStatusBarDisabled(mAdminComponentName, true);
 
-            // enable activity (or else we could select as launcher)
+            Log.i(TAG, "Setting activity as home/launcher");
+            final ComponentName customLauncher = new ComponentName(context.getPackageName(), TheftModeActivity.class.getName());
             mPackageManager.setComponentEnabledSetting(
                     customLauncher,
                     PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                     PackageManager.DONT_KILL_APP
             );
-
-            // set it as default home activity
             mDevicePolicyManager.addPersistentPreferredActivity(
                     mAdminComponentName, Util.getHomeIntentFilter(), customLauncher);
 
-            // start activity
+            Log.i(TAG, "Starting (home) activity");
             Intent launchIntent = Util.getHomeIntent();
             context.startActivity(launchIntent);
         } catch (Exception e) {
@@ -83,6 +82,7 @@ public class TheftModeActivity extends Activity {
 
     public static void stopTheftMode(Context context) {
         try {
+            Log.i(TAG, "Stopping theft mode...");
             Intent launchIntent = Util.getHomeIntent();
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             launchIntent.putExtra(TheftModeActivity.STOP_THEFT_MODE, true);
@@ -93,26 +93,32 @@ public class TheftModeActivity extends Activity {
         }
     }
 
+    // TODO(igor): understand why this is not working
     public void onBackdoorClicked() {
         backdoorTriggered = true;
 
+        Log.i(TAG, "Re-enabling status bar");
         mDevicePolicyManager.setStatusBarDisabled(mAdminComponentName, false);
 
+        Log.i(TAG, "Stopping kiosk mode");
         mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{});
         stopLockTask();
-
-        setDefaultKioskPolicies(false);
-
-        // clear default home activity
         mDevicePolicyManager.clearPackagePersistentPreferredActivities(mAdminComponentName, getPackageName());
 
-        // disable activity (or else we could select as launcher)
+        Log.i(TAG, "Resetting user restrictions");
+        setDefaultKioskPolicies(false);
+
+        Log.i(TAG, "Clearing home/launcher activity");
         final ComponentName customLauncher = new ComponentName(getPackageName(), TheftModeActivity.class.getName());
         mPackageManager.setComponentEnabledSetting(
             customLauncher,
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP
         );
+
+        Log.i(TAG, "Starting (home) activity");
+        Intent launchIntent = Util.getHomeIntent();
+        startActivity(launchIntent);
     }
 
     private ComponentName mAdminComponentName;
@@ -122,26 +128,26 @@ public class TheftModeActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.i(TAG, "onCreate");
 
         backdoorTriggered = false;
 
         mAdminComponentName = DeviceAdminReceiver.getComponentName(this);
         mDevicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         mPackageManager = getPackageManager();
+        SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
 
-        // lock task
+        Log.i(TAG, "Starting kiosk mode");
         mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{getPackageName()});
         if (mDevicePolicyManager.isLockTaskPermitted(getPackageName())) {
             startLockTask();
         }
 
-        // set policies
+        Log.i(TAG, "Setting custom user restrictions");
         setDefaultKioskPolicies(true);
 
         // set beautiful UI
         setContentView(R.layout.activity_theft_mode);
-
-        SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
 
         TextView title = findViewById(R.id.title);
         title.setText(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY));
@@ -149,10 +155,21 @@ public class TheftModeActivity extends Activity {
         TextView message = findViewById(R.id.contact_info);
         message.setText(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY));
 
+        Log.i(TAG, "Setting up backdoor gestures");
         String sequence = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY);
         correctGestureSequence = Arrays.stream(sequence.split(",")).map(String::trim).filter(POSSIBLE_GESTURES::contains).collect(Collectors.toList());
-
         setupGestures();
+
+        Log.i(TAG, "Changing owntracks mode to 'move'");
+        try {
+            Intent intent = new Intent("org.owntracks.android.CHANGE_MONITORING");
+            intent.setPackage("org.owntracks.android");
+            intent.putExtra("monitoring", 2);
+            startService(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Error while changing owntracks mode to 'move'!");
+            e.printStackTrace();
+        }
 
         // TODO(igor): the following:
         // Disable keyguard; TODO(igor): should I?
@@ -185,6 +202,7 @@ public class TheftModeActivity extends Activity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
+        Log.i(TAG, "onUserLeaveHint");
         // Bring the app back to the foreground
         Intent intent = new Intent(this, TheftModeActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
@@ -207,28 +225,11 @@ public class TheftModeActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        Log.i(TAG, "onPause, backdoorTriggered=" + backdoorTriggered);
         // Restart the activity if the user tries to leave it
         if (!isTaskRoot() && !backdoorTriggered) {
             startActivity(new Intent(this, TheftModeActivity.class));
         }
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-
-        // start lock task mode if it's not already active
-        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        // ActivityManager.getLockTaskModeState api is not available in pre-M.
-        if (Util.SDK_INT < VERSION_CODES.M) {
-            if (!am.isInLockTaskMode()) {
-                startLockTask();
-            }
-        } else if (am.getLockTaskModeState() == ActivityManager.LOCK_TASK_MODE_NONE) {
-            startLockTask();
-        }
-
-        mDevicePolicyManager.setStatusBarDisabled(mAdminComponentName, true);
     }
 
     private void setUserRestriction(String restriction, boolean disallow) {

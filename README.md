@@ -11,9 +11,9 @@ Test Device Policy Control (Test DPC) App
 - [ ] redo user restrictions
 - [x] "release" script
 - [ ] CI (?)
-- [ ] factory reset protection (and test it) // https://developers.google.com/people/api/rest/v1/people/get?apix_params=%7B%22resourceName%22%3A%22people%2Fme%22%2C%22personFields%22%3A%22metadata%22%7D
-- [ ] bugfix: status bar/restrictions back on stop theft
-- [ ] owntracks integration on theft mode (https://owntracks.org/booklet/features/android/#automation-via-tasker-automagic-etc)
+- [x] factory reset protection (and test it) // https://developers.google.com/people/api/rest/v1/people/get?apix_params=%7B%22resourceName%22%3A%22people%2Fme%22%2C%22personFields%22%3A%22metadata%22%7D
+- [x] bugfix: status bar/restrictions back on stop theft
+- [x] owntracks integration on theft mode (https://owntracks.org/booklet/features/android/#automation-via-tasker-automagic-etc)
 
 Test DPC is an app designed to help EMMs, ISVs, and OEMs to test their applications and platforms in a Android enterprise managed profile (i.e. work profile). It serves as both a sample Device Policy Controller and a testing application to flex the APIs available for Android enterprise. It supports devices running Android 5.0 Lollipop or later.
 

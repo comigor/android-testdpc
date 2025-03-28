@@ -33,7 +33,7 @@ public abstract class SettingsHelper {
             THEFT_MODE_INSTRUCTIONS_KEY, "Se você achou/comprou esse celular, por favor entre em contato com o dono.",
             POWER_BUTTON_PRESSES_KEY, "4",
             PRESS_TIME_WINDOW_KEY, "2000",
-            ACTIVATION_DELAY_KEY, "600",
+            ACTIVATION_DELAY_KEY, "180",
             DEACTIVATION_SEQUENCE_KEY, "up,up,down,down,right",
             APP_UPDATE_URL, "https://public.borges.dev/shadow/latest.apk",
             FRP_ACCOUNT_IDS, ""

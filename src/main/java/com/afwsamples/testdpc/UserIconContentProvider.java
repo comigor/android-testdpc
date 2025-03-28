@@ -59,7 +59,7 @@ public final class UserIconContentProvider extends ContentProvider {
 
   private static final MimeTypeMap MIME_MAP = MimeTypeMap.getSingleton();
 
-  static final String AUTHORITY = "com.afwsamples.testdpc.usericoncontentprovider";
+  static final String AUTHORITY = "dev.borges.shadow.usericoncontentprovider";
 
   private final Map<Uri, ContentValues> mFileTracker = new HashMap<>();
 

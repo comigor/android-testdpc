@@ -17,10 +17,13 @@
 package com.afwsamples.testdpc.common;
 
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageInstaller;
+import android.os.Build;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

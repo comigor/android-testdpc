@@ -64,6 +64,7 @@ public class SettingsActivity extends AppCompatActivity {
     private ComponentName adminComponentName;
     private boolean isDeviceOwner = false;
     private boolean isAuthenticated = false;
+    private DownloadHelper downloadHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,6 +75,7 @@ public class SettingsActivity extends AppCompatActivity {
         encryptedSharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
         devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         adminComponentName = getAdminComponentName(this);
+        downloadHelper = new DownloadHelper(this);
 
         populateSettings();
 
@@ -408,7 +410,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void updateAppSetting() {
         String url = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
-        View textView = createClickableTextItem("Update app", () -> new DownloadHelper(this).downloadAndInstallApk(this, url));
+        View textView = createClickableTextItem("Update app", () -> downloadHelper.downloadAndInstallApk(this, url));
         settingsContainer.addView(textView);
     }
 

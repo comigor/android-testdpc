@@ -2,9 +2,8 @@ package dev.borges.shadow.util;
 
 import android.content.ContentResolver;
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -29,7 +28,6 @@ public class DownloadHelper extends AbstractFetchListener {
     final FetchConfiguration fetchConfiguration;
     final Fetch fetch;
     final ContentResolver contentResolver;
-    final Handler handler = new Handler(Looper.getMainLooper());
 
     public DownloadHelper(Context context) {
         this.context = context;
@@ -75,30 +73,20 @@ public class DownloadHelper extends AbstractFetchListener {
     public void onCompleted(@NonNull Download download) {
         Log.i(TAG, "Download completed: " + download.getFileUri());
 
-        installThisFuckingApk1(download);
-    }
+        try {
+            InputStream in = contentResolver.openInputStream(download.getFileUri());
+            PackageInstallationUtils.installPackageMutable(context, in, context.getPackageName());
+        } catch (Exception e) {
+            Log.e(TAG, "Installation error (mutable)", e);
+        }
 
-    private void installThisFuckingApk1(Download download) {
-        handler.postDelayed(() -> {
-            try {
-                InputStream in = contentResolver.openInputStream(download.getFileUri());
-                PackageInstallationUtils.installPackageMutable(context, in, context.getPackageName());
-                installThisFuckingApk2(download);
-            } catch (Exception e) {
-                Log.e(TAG, "Installation error (mutable)", e);
-            }
-        }, 1000);
-    }
+        try {
+            InputStream in = contentResolver.openInputStream(download.getFileUri());
+            PackageInstallationUtils.installPackage(context, in, context.getPackageName());
+        } catch (Exception e) {
+            Log.e(TAG, "Installation error (immutable)", e);
+        }
 
-    private void installThisFuckingApk2(Download download) {
-        handler.postDelayed(() -> {
-            try {
-                InputStream in = contentResolver.openInputStream(download.getFileUri());
-                PackageInstallationUtils.installPackage(context, in, context.getPackageName());
-                installThisFuckingApk1(download);
-            } catch (Exception e) {
-                Log.e(TAG, "Installation error (immutable)", e);
-            }
-        }, 1000);
+        Toast.makeText(context, "If app is still open, close it and try to update again.", Toast.LENGTH_SHORT).show();
     }
 }

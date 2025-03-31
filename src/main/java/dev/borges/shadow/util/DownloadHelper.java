@@ -69,6 +69,7 @@ public class DownloadHelper extends AbstractFetchListener {
         });
 
         DownloadManager.Request request2 = new DownloadManager.Request(Uri.parse(url));
+        request2.setMimeType("application/vnd.android.package-archive");
         mDownloadManager.enqueue(request2);
     }
 
@@ -98,6 +99,18 @@ public class DownloadHelper extends AbstractFetchListener {
             PackageInstallationUtils.installPackage(context, in, context.getPackageName());
         } catch (Exception e) {
             Log.e(TAG, "Installation error (immutable)", e);
+        }
+
+        try {
+            Uri apkUri = download.getFileUri();
+            Intent installIntent = new Intent(Intent.ACTION_VIEW);
+            installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            context.startActivity(installIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "Installation error (manual)", e);
         }
 
         Toast.makeText(context, "If app is still open, close it and try to update again.", Toast.LENGTH_SHORT).show();

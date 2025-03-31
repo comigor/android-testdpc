@@ -2,7 +2,6 @@ package dev.borges.shadow;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.app.DownloadManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.FactoryResetProtectionPolicy;
 import android.content.BroadcastReceiver;
@@ -17,11 +16,13 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
 import android.provider.Settings;
+import android.service.persistentdata.PersistentDataBlockManager;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CompoundButton;
@@ -43,12 +44,13 @@ import com.afwsamples.testdpc.R;
 import com.afwsamples.testdpc.common.PackageInstallationUtils;
 
 import dev.borges.shadow.util.DevicePasswordHelper;
+import dev.borges.shadow.util.DownloadHelper;
 import dev.borges.shadow.util.SettingsHelper;
-import dev.borges.shadow.util.UpdateAppHelper;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class SettingsActivity extends AppCompatActivity {
@@ -96,6 +98,11 @@ public class SettingsActivity extends AppCompatActivity {
 
         // Reset authentication state when the app is paused (e.g., when sent to background)
         isAuthenticated = false;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
     }
 
     @Override
@@ -268,7 +275,7 @@ public class SettingsActivity extends AppCompatActivity {
             if (intent.resolveActivity(getPackageManager()) != null) {
                 startActivity(intent);
             } else {
-                Toast.makeText(this, "No web browser app found.", android.widget.Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "No web browser app found.", Toast.LENGTH_SHORT).show();
             }
         });
         settingsContainer.addView(textView);
@@ -284,6 +291,10 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addFRPToggleSetting() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            PersistentDataBlockManager pdbManager = (PersistentDataBlockManager) getSystemService(Context.PERSISTENT_DATA_BLOCK_SERVICE);
+            if (pdbManager == null) return;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             FactoryResetProtectionPolicy policy = devicePolicyManager.getFactoryResetProtectionPolicy(adminComponentName);
             boolean isChecked = policy != null && policy.isFactoryResetProtectionEnabled();
@@ -396,28 +407,10 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void updateAppSetting() {
-        registerReceiver(mInstallReceiver, new IntentFilter(PackageInstallationUtils.ACTION_INSTALL_COMPLETE), Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ? Context.RECEIVER_EXPORTED : Context.RECEIVER_VISIBLE_TO_INSTANT_APPS);
-
         String url = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
-        View textView = createClickableTextItem("Update app", () -> UpdateAppHelper.downloadAndInstall(this, url));
+        View textView = createClickableTextItem("Update app", () -> new DownloadHelper(this).downloadAndInstallApk(this, url));
         settingsContainer.addView(textView);
     }
-
-    final private BroadcastReceiver mInstallReceiver =
-        new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (!PackageInstallationUtils.ACTION_INSTALL_COMPLETE.equals(intent.getAction())) {
-                    return;
-                }
-
-                int result = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
-                String packageName = intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME);
-                Log.d(TAG, "PackageInstallerCallback: result=" + result + " packageName=" + packageName);
-
-                unregisterReceiver(mInstallReceiver);
-            }
-        };
 
     @Override
     public void onBackPressed() {
@@ -429,7 +422,7 @@ public class SettingsActivity extends AppCompatActivity {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.HORIZONTAL);
         layout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        layout.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        layout.setGravity(Gravity.CENTER_VERTICAL);
         layout.setPadding(0, dpToPx(8), 0, dpToPx(8));
 
         TextView labelTextView = new TextView(this);
@@ -451,7 +444,7 @@ public class SettingsActivity extends AppCompatActivity {
         row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
         row.addView(content);
         if (onClick != null) {
             row.setClickable(true);
@@ -472,7 +465,7 @@ public class SettingsActivity extends AppCompatActivity {
         return textView;
     }
 
-    private View createTextEditItem(String label, String hint, String initialValue, java.util.function.Consumer<String> onTextChanged) {
+    private View createTextEditItem(String label, String hint, String initialValue, Consumer<String> onTextChanged) {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -496,7 +489,7 @@ public class SettingsActivity extends AppCompatActivity {
         return layout;
     }
 
-    private View createMultilineTextEditItem(String label, String hint, String initialValue, java.util.function.Consumer<String> onTextChanged) {
+    private View createMultilineTextEditItem(String label, String hint, String initialValue, Consumer<String> onTextChanged) {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -511,7 +504,7 @@ public class SettingsActivity extends AppCompatActivity {
         editText.setText(initialValue);
         editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         editText.setMinLines(2);
-        editText.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        editText.setGravity(Gravity.TOP | Gravity.START);
         editText.addTextChangedListener(new TextWatcherAdapter() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -522,7 +515,7 @@ public class SettingsActivity extends AppCompatActivity {
         return layout;
     }
 
-    private View createNumberEditItem(String label, String hint, String initialValue, java.util.function.Consumer<String> onTextChanged) {
+    private View createNumberEditItem(String label, String hint, String initialValue, Consumer<String> onTextChanged) {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -600,7 +593,7 @@ public class SettingsActivity extends AppCompatActivity {
     //endregion
 
     //region TextWatcherAdapter
-    private static abstract class TextWatcherAdapter implements android.text.TextWatcher {
+    private static abstract class TextWatcherAdapter implements TextWatcher {
         @Override
         public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 

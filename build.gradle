@@ -52,6 +52,7 @@ subprojects {
 
                 implementation("androidx.security:security-crypto:1.0.0")
                 implementation("androidx.biometric:biometric:1.2.0-alpha05")
+                implementation("com.github.tonyofrancis.Fetch:fetch2:3.4.1")
             }
         }
     }
@@ -66,7 +67,7 @@ ext {
     // exactly 1 digiT
     versionMinor = 0
     // exactly 2 digits
-    versionBuild = 20
+    versionBuild = 22
 }
 
 android {
@@ -134,6 +135,7 @@ dependencies {
     implementation("com.google.truth:truth:1.4.2")
     implementation("androidx.security:security-crypto:1.0.0")
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
+    implementation("com.github.tonyofrancis.Fetch:fetch2:3.4.1")
 
     api project(path: ':setupcompat')
     api project(path: ':setupdesign')

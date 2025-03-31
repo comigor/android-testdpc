@@ -2,22 +2,17 @@ package dev.borges.shadow;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.app.DownloadManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.FactoryResetProtectionPolicy;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
 import android.provider.Settings;
 import android.service.persistentdata.PersistentDataBlockManager;
 import android.text.Editable;
@@ -33,7 +28,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -168,6 +162,7 @@ public class SettingsActivity extends AppCompatActivity {
             addTitle("Extras / dev");
             addAppUpdateUrl();
             updateAppSetting();
+            updateAppSetting2();
             addTestDPCSetting();
         }
     }
@@ -413,6 +408,20 @@ public class SettingsActivity extends AppCompatActivity {
     private void updateAppSetting() {
         String url = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
         View textView = createClickableTextItem("Update app", () -> downloadHelper.downloadAndInstallApk(this, url));
+        settingsContainer.addView(textView);
+    }
+
+    private void updateAppSetting2() {
+        String url = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
+        View textView = createClickableTextItem("Update app manually", () -> {
+            Uri webpage = Uri.parse(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, webpage);
+            if (intent.resolveActivity(getPackageManager()) != null) {
+                startActivity(intent);
+            } else {
+                Toast.makeText(this, "No web browser app found.", Toast.LENGTH_SHORT).show();
+            }
+        });
         settingsContainer.addView(textView);
     }
 

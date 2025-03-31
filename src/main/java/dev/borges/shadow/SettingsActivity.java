@@ -2,6 +2,7 @@ package dev.borges.shadow;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.app.DownloadManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.FactoryResetProtectionPolicy;
 import android.content.BroadcastReceiver;
@@ -16,6 +17,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
 import android.provider.Settings;
 import android.service.persistentdata.PersistentDataBlockManager;
 import android.text.Editable;
@@ -31,6 +33,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -41,7 +44,6 @@ import androidx.core.content.ContextCompat;
 import com.afwsamples.testdpc.DeviceAdminReceiver;
 import com.afwsamples.testdpc.PolicyManagementActivity;
 import com.afwsamples.testdpc.R;
-import com.afwsamples.testdpc.common.PackageInstallationUtils;
 
 import dev.borges.shadow.util.DevicePasswordHelper;
 import dev.borges.shadow.util.DownloadHelper;

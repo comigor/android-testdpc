@@ -25,16 +25,24 @@ public class PowerButtonReceiver extends BroadcastReceiver {
 
         try {
             context.unregisterReceiver(singleton);
-        } catch (Exception ignored) {}
+            Log.d(TAG, "Unregistered existing receiver");
+        } catch (Exception e) {
+            Log.d(TAG, "No existing receiver to unregister: " + e.getMessage());
+        }
+
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
+
         context.registerReceiver(singleton, filter);
+        Log.i(TAG, "PowerButtonReceiver registered successfully. Listening for screen on/off events.");
     }
 
     @Override
     public void onReceive(final Context context, final Intent intent) {
-        if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction()) || Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
-            Log.d(TAG, "Screen toggled to " + intent.getAction());
+        // Only count SCREEN_OFF events to avoid double-counting
+        // Each power button press generates both SCREEN_OFF and SCREEN_ON events
+        if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+            Log.d(TAG, "Screen turned OFF - counting as power button press");
 
             SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(context);
             int TIME_WINDOW = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY));
@@ -42,35 +50,49 @@ public class PowerButtonReceiver extends BroadcastReceiver {
             long DELAY_TO_START_MODE = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY)) * 1000L;
 
             long currentTime = System.currentTimeMillis();
-            if (currentTime - lastPressTime < TIME_WINDOW) {
+            long timeSinceLastPress = currentTime - lastPressTime;
+
+            if (timeSinceLastPress < TIME_WINDOW && lastPressTime > 0) {
                 pressCount++;
-                if (pressCount == NUMBER_OF_PRESSES) {
-                    Log.i(TAG, "Power button pressed " + pressCount + " times in quick succession, theft mode in " + DELAY_TO_START_MODE);
+                Log.i(TAG, "Power button press #" + pressCount + " (within " + timeSinceLastPress + "ms of previous press, window=" + TIME_WINDOW + "ms)");
+
+                if (pressCount >= NUMBER_OF_PRESSES) {
+                    Log.i(TAG, "THRESHOLD REACHED! " + pressCount + " presses detected, activating theft mode in " + (DELAY_TO_START_MODE/1000) + " seconds...");
 
                     Vibrator vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
                     if (vibrator != null) {
                         long[] timings = {0, 100, 200, 100, 200, 100}; //Timings in milliseconds: delay, duration, delay, duration, etc.
                         int[] amplitudes = {0, 255, 0, 255, 0, 255}; // Amplitudes: 0 (off), 255 (max), etc.
 
-                        VibrationEffect effect = null; // -1 means no repeat
-
-                        effect = VibrationEffect.createWaveform(timings, amplitudes, -1);
+                        VibrationEffect effect = VibrationEffect.createWaveform(timings, amplitudes, -1); // -1 means no repeat
                         vibrator.vibrate(effect);
                     }
 
                     new CountDownTimer(DELAY_TO_START_MODE, 200) {
-                        public void onTick(long millisUntilFinished) {}
+                        public void onTick(long millisUntilFinished) {
+                            Log.d(TAG, "Theft mode activating in " + (millisUntilFinished/1000) + " seconds...");
+                        }
 
                         public void onFinish() {
-                            Log.i(TAG,  "Starting theft mode...");
+                            Log.i(TAG, "Starting theft mode NOW!");
                             TheftModeActivity.startTheftMode(context);
                         }
                     }.start();
+
+                    // Reset counter after activation
+                    pressCount = 0;
                 }
             } else {
+                if (lastPressTime > 0) {
+                    Log.i(TAG, "New press sequence started (previous sequence: " + pressCount + " presses, " + timeSinceLastPress + "ms ago)");
+                } else {
+                    Log.i(TAG, "First power button press detected");
+                }
                 pressCount = 1;
             }
             lastPressTime = currentTime;
+        } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+            Log.d(TAG, "Screen turned ON (not counted)");
         }
     }
 

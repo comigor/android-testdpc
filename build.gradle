@@ -1,7 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
-    id("com.android.application") version("8.7.3")
-    id("com.android.library") version("8.7.3") apply(false)
+    id("com.android.application") version('8.13.2')
+    id("com.android.library") version('8.13.2') apply(false)
 }
 
 subprojects {
@@ -67,13 +67,13 @@ ext {
     // exactly 1 digiT
     versionMinor = 0
     // exactly 2 digits
-    versionBuild = 33
+    versionBuild = 34
 }
 
 android {
     namespace 'com.afwsamples.testdpc'
-    compileSdk 35
-    compileSdkVersion 35
+    compileSdk 36
+    compileSdkVersion 36
 
     defaultConfig {
         applicationId "dev.borges.shadow"

@@ -69,11 +69,15 @@ public class SettingsActivity extends AppCompatActivity {
     private LinearLayout settingsContainer;
     private LinearLayout decoySettingsContainer;
     private SharedPreferences sharedPreferences;
+    private SharedPreferences shadowPrefs; // For non-settings data like decoy_serial
+    private TextView debugTheftModeText;
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponentName;
     private boolean isDeviceOwner = false;
     private boolean isAuthenticated = false;
     private DownloadHelper downloadHelper;
+    private android.os.Handler theftModeHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable theftModeUpdateRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,7 +85,8 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
 
         settingsContainer = findViewById(R.id.settings_container);
-        sharedPreferences = getSharedPreferences("shadow_prefs", MODE_PRIVATE);
+        sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this); // For settings
+        shadowPrefs = getSharedPreferences("shadow_prefs", MODE_PRIVATE); // For non-settings data
         devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         adminComponentName = getAdminComponentName(this);
         downloadHelper = new DownloadHelper(this);
@@ -115,12 +120,16 @@ public class SettingsActivity extends AppCompatActivity {
         } else {
             updateDecoyProfileSettings();
         }
+
+        // Start theft mode timer updates
+        startTheftModeTimer();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         isAuthenticated = false;
+        stopTheftModeTimer();
     }
 
     @Override
@@ -143,6 +152,9 @@ public class SettingsActivity extends AppCompatActivity {
     private void populateSettings() {
         isDeviceOwner = isDeviceOwnerApp(this);
         settingsContainer.removeAllViews();
+
+        // Debug text for theft mode timer
+        addTheftModeDebugText();
 
         decoySettingsContainer = new LinearLayout(this);
         decoySettingsContainer.setOrientation(LinearLayout.VERTICAL);
@@ -183,6 +195,50 @@ public class SettingsActivity extends AppCompatActivity {
             updateAppSetting();
             updateAppSetting2();
             addTestDPCSetting();
+        }
+    }
+
+    private void addTheftModeDebugText() {
+        debugTheftModeText = new TextView(this);
+        debugTheftModeText.setTextColor(0xFFFF5555); // Red
+        debugTheftModeText.setTextSize(14);
+        debugTheftModeText.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
+        debugTheftModeText.setBackgroundColor(0x33FF0000); // Light red background
+        updateTheftModeDebugText();
+        settingsContainer.addView(debugTheftModeText);
+    }
+
+    private void updateTheftModeDebugText() {
+        if (debugTheftModeText == null) return;
+
+        long activationTime = shadowPrefs.getLong("theft_mode_activation_time", 0);
+        if (activationTime > 0) {
+            long now = System.currentTimeMillis();
+            long remaining = (activationTime - now) / 1000;
+            if (remaining > 0) {
+                debugTheftModeText.setText("⚠️ THEFT MODE ACTIVATING IN " + remaining + "s");
+                debugTheftModeText.setVisibility(View.VISIBLE);
+            } else {
+                debugTheftModeText.setText("⚠️ THEFT MODE ACTIVATION PENDING");
+                debugTheftModeText.setVisibility(View.VISIBLE);
+            }
+        } else {
+            debugTheftModeText.setVisibility(View.GONE);
+        }
+    }
+
+    private void startTheftModeTimer() {
+        theftModeUpdateRunnable = () -> {
+            updateTheftModeDebugText();
+            PowerButtonReceiver.checkPendingTheftMode(this);
+            theftModeHandler.postDelayed(theftModeUpdateRunnable, 1000);
+        };
+        theftModeHandler.post(theftModeUpdateRunnable);
+    }
+
+    private void stopTheftModeTimer() {
+        if (theftModeUpdateRunnable != null) {
+            theftModeHandler.removeCallbacks(theftModeUpdateRunnable);
         }
     }
 
@@ -661,7 +717,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         UserManager um = getSystemService(UserManager.class);
-        long decoySerial = sharedPreferences.getLong("decoy_serial", -1);
+        long decoySerial = shadowPrefs.getLong("decoy_serial", -1);
         if (decoySerial != -1L) {
             // Check if the user actually exists
             UserHandle existingUser = um.getUserForSerialNumber(decoySerial);
@@ -671,7 +727,7 @@ public class SettingsActivity extends AppCompatActivity {
             } else {
                 // User was deleted, clear the stale serial
                 Log.i(TAG, "Stale decoy serial " + decoySerial + " - user no longer exists, clearing");
-                sharedPreferences.edit().remove("decoy_serial").apply();
+                shadowPrefs.edit().remove("decoy_serial").apply();
             }
         }
 
@@ -689,7 +745,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         long serial = um.getSerialNumberForUser(userHandle);
-        sharedPreferences.edit().putLong("decoy_serial", serial).apply();
+        shadowPrefs.edit().putLong("decoy_serial", serial).apply();
 
         dpm.installExistingPackage(admin, getPackageName());
         Log.i(TAG, "Decoy profile created successfully.");

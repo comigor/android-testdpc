@@ -3,6 +3,7 @@ package dev.borges.shadow;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.UserManager;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -58,12 +59,12 @@ public class PasswordActivity extends FragmentActivity {
             btnSubmit.setOnClickListener(v -> verifyPassword());
             btnChangePassword.setOnClickListener(v -> changePassword());
 
-            // Only show fingerprint button if biometric key is valid (enabled in Settings and no new fingerprints enrolled)
-            if (PasswordHelper.isBiometricKeyValid()) {
+            // Only show fingerprint on owner profile (never on decoy) and if biometric key is valid
+            boolean isOwnerProfile = getSystemService(UserManager.class).isSystemUser();
+            if (isOwnerProfile && PasswordHelper.isBiometricKeyValid()) {
                 btnUseFingerprint.setVisibility(View.VISIBLE);
                 btnUseFingerprint.setOnClickListener(v -> authenticateWithBiometrics());
             } else {
-                // Either not enabled or key invalidated (new fingerprints enrolled)
                 btnUseFingerprint.setVisibility(View.GONE);
             }
         }

@@ -39,6 +39,9 @@ public class POffService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        // Check for pending theft mode activation on every accessibility event
+        PowerButtonReceiver.checkPendingTheftMode(this);
+
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
 //            Log.d(TAG, "Window state changed: " + event.getPackageName() + ", " + event.getClassName());
             String packageName = event.getPackageName() != null ? event.getPackageName().toString() : null;

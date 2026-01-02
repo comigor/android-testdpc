@@ -115,22 +115,27 @@ public class LockTaskSwitchActivity extends AppCompatActivity {
     }
 
     private void setBrightnessToMinimum() {
+        // Set window brightness to minimum (no permission needed)
         try {
-            // Set system brightness to 0
+            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+            layoutParams.screenBrightness = 0.0f;
+            getWindow().setAttributes(layoutParams);
+            Log.i(TAG, "Window brightness set to minimum");
+        } catch (Exception e) {
+            Log.w(TAG, "Could not set window brightness", e);
+        }
+
+        // Also try system brightness (needs WRITE_SETTINGS permission, may fail)
+        try {
             android.provider.Settings.System.putInt(
                 getContentResolver(),
                 android.provider.Settings.System.SCREEN_BRIGHTNESS,
                 0
             );
-
-            // Also set window brightness to minimum
-            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-            layoutParams.screenBrightness = 0.0f;
-            getWindow().setAttributes(layoutParams);
-
-            Log.i(TAG, "Brightness set to minimum");
+            Log.i(TAG, "System brightness set to minimum");
         } catch (Exception e) {
-            Log.w(TAG, "Could not set brightness", e);
+            // This is expected if WRITE_SETTINGS permission not granted
+            Log.d(TAG, "Could not set system brightness (WRITE_SETTINGS not granted)");
         }
     }
 

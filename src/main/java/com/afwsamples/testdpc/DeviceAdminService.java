@@ -20,8 +20,11 @@ import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.UserManager;
 import android.util.Log;
@@ -31,6 +34,7 @@ import java.io.PrintWriter;
 import android.content.Context;
 import dev.borges.shadow.BluetoothWatchReceiver;
 import dev.borges.shadow.PowerButtonReceiver;
+import dev.borges.shadow.TheftModeActivity;
 
 /**
  * To allow DPC process to be persistent and foreground.
@@ -41,7 +45,12 @@ import dev.borges.shadow.PowerButtonReceiver;
 public class DeviceAdminService extends android.app.admin.DeviceAdminService {
 
   private static final String TAG = "DeviceAdminService";
+  private static final String PREF_THEFT_MODE_ACTIVATION_TIME = "theft_mode_activation_time";
+  private static final long THEFT_MODE_CHECK_INTERVAL_MS = 1000; // Check every second
+
   private BroadcastReceiver mPackageChangedReceiver;
+  private Handler mTheftModeHandler;
+  private Runnable mTheftModeChecker;
 
   @Override
   public void onCreate() {
@@ -56,6 +65,50 @@ public class DeviceAdminService extends android.app.admin.DeviceAdminService {
 
       // Ensure app is exempt from battery optimization (Device Owner privilege)
       ensureBatteryOptimizationExemption();
+
+      // Start periodic theft mode checker - runs regardless of active user
+      startTheftModeChecker();
+    }
+  }
+
+  /**
+   * Periodically check if theft mode should activate.
+   * This runs in user 0's context, so it continues even when decoy user is active.
+   */
+  private void startTheftModeChecker() {
+    mTheftModeHandler = new Handler(Looper.getMainLooper());
+    mTheftModeChecker = new Runnable() {
+      @Override
+      public void run() {
+        checkAndActivateTheftMode();
+        mTheftModeHandler.postDelayed(this, THEFT_MODE_CHECK_INTERVAL_MS);
+      }
+    };
+    mTheftModeHandler.post(mTheftModeChecker);
+    Log.i(TAG, "Theft mode checker started");
+  }
+
+  private void stopTheftModeChecker() {
+    if (mTheftModeHandler != null && mTheftModeChecker != null) {
+      mTheftModeHandler.removeCallbacks(mTheftModeChecker);
+      Log.i(TAG, "Theft mode checker stopped");
+    }
+  }
+
+  private void checkAndActivateTheftMode() {
+    SharedPreferences prefs = getSharedPreferences("shadow_prefs", MODE_PRIVATE);
+    long activationTime = prefs.getLong(PREF_THEFT_MODE_ACTIVATION_TIME, 0);
+
+    if (activationTime > 0 && System.currentTimeMillis() >= activationTime) {
+      Log.i(TAG, "*** THEFT MODE ACTIVATION TIME REACHED (from DeviceAdminService) ***");
+
+      // Clear the activation time
+      prefs.edit().remove(PREF_THEFT_MODE_ACTIVATION_TIME).apply();
+
+      // Launch theft mode activity
+      Intent intent = new Intent(this, TheftModeActivity.class);
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+      startActivity(intent);
     }
   }
 
@@ -117,6 +170,7 @@ public class DeviceAdminService extends android.app.admin.DeviceAdminService {
   @Override
   public void onDestroy() {
     super.onDestroy();
+    stopTheftModeChecker();
     unregisterPackageChangesReceiver();
   }
 

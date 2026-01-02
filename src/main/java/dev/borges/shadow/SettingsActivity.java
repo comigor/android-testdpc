@@ -217,32 +217,58 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    private LinearLayout theftModeBanner;
+
     private void addTheftModeDebugText() {
+        // Create banner container
+        theftModeBanner = new LinearLayout(this);
+        theftModeBanner.setOrientation(LinearLayout.HORIZONTAL);
+        theftModeBanner.setBackgroundColor(0x33FF0000); // Light red background
+        theftModeBanner.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
+        theftModeBanner.setGravity(Gravity.CENTER_VERTICAL);
+
+        // Text showing countdown
         debugTheftModeText = new TextView(this);
         debugTheftModeText.setTextColor(0xFFFF5555); // Red
         debugTheftModeText.setTextSize(14);
-        debugTheftModeText.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
-        debugTheftModeText.setBackgroundColor(0x33FF0000); // Light red background
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        debugTheftModeText.setLayoutParams(textParams);
+        theftModeBanner.addView(debugTheftModeText);
+
+        // Cancel button
+        TextView cancelBtn = new TextView(this);
+        cancelBtn.setText("CANCEL");
+        cancelBtn.setTextColor(0xFFFFFFFF);
+        cancelBtn.setTextSize(12);
+        cancelBtn.setBackgroundColor(0xFFCC0000);
+        cancelBtn.setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6));
+        cancelBtn.setOnClickListener(v -> {
+            PowerButtonReceiver.clearPendingTheftMode(this);
+            updateTheftModeDebugText();
+            Toast.makeText(this, "Theft mode cancelled", Toast.LENGTH_SHORT).show();
+        });
+        theftModeBanner.addView(cancelBtn);
+
         updateTheftModeDebugText();
-        settingsContainer.addView(debugTheftModeText);
+        settingsContainer.addView(theftModeBanner);
     }
 
     private void updateTheftModeDebugText() {
-        if (debugTheftModeText == null) return;
+        if (theftModeBanner == null || debugTheftModeText == null) return;
 
         long activationTime = shadowPrefs.getLong("theft_mode_activation_time", 0);
         if (activationTime > 0) {
             long now = System.currentTimeMillis();
             long remaining = (activationTime - now) / 1000;
             if (remaining > 0) {
-                debugTheftModeText.setText("⚠️ THEFT MODE ACTIVATING IN " + remaining + "s");
-                debugTheftModeText.setVisibility(View.VISIBLE);
+                debugTheftModeText.setText("THEFT MODE IN " + remaining + "s");
+                theftModeBanner.setVisibility(View.VISIBLE);
             } else {
-                debugTheftModeText.setText("⚠️ THEFT MODE ACTIVATION PENDING");
-                debugTheftModeText.setVisibility(View.VISIBLE);
+                debugTheftModeText.setText("THEFT MODE PENDING");
+                theftModeBanner.setVisibility(View.VISIBLE);
             }
         } else {
-            debugTheftModeText.setVisibility(View.GONE);
+            theftModeBanner.setVisibility(View.GONE);
         }
     }
 
@@ -963,38 +989,54 @@ public class SettingsActivity extends AppCompatActivity {
 
         Log.i(TAG, "Creating decoy profile...");
         String hackyName = "System";
+
+        // SKIP_SETUP_WIZARD ensures the user is fully initialized with our app as profile owner
+        int flags = DevicePolicyManager.SKIP_SETUP_WIZARD;
+
         UserHandle userHandle = dpm.createAndManageUser(
-            admin, hackyName, admin, null, 0
+            admin, hackyName, admin, null, flags
         );
         if (userHandle == null) {
             Log.e(TAG, "Failed to create decoy profile.");
+            Toast.makeText(this, "Failed to create decoy profile", Toast.LENGTH_SHORT).show();
             return;
         }
 
         long serial = um.getSerialNumberForUser(userHandle);
         shadowPrefs.edit().putLong("decoy_serial", serial).apply();
+        Log.i(TAG, "Decoy profile created with serial: " + serial);
 
-        dpm.installExistingPackage(admin, getPackageName());
-        Log.i(TAG, "Decoy profile created successfully.");
+        // Note: createAndManageUser with admin parameter automatically installs our app
+        // and sets it as profile owner. installExistingPackage is not needed.
+
+        // Start the user in background to initialize it
+        int startResult = dpm.startUserInBackground(admin, userHandle);
+        Log.i(TAG, "Started decoy user in background, result: " + startResult);
         // Start the decoy in background immediately
         DeviceAdminReceiver.startDecoyInBackground(this);
         updateDecoyProfileSettings();
     }
 
     private void returnToRealProfile() {
-        // Use bindDeviceAdminServiceAsUser to communicate with device owner in user 0
+        // Check if we're profile owner - required for cross-user binding
+        boolean isProfileOwner = devicePolicyManager.isProfileOwnerApp(getPackageName());
+        Log.i(TAG, "returnToRealProfile: isProfileOwner=" + isProfileOwner);
+
+        if (!isProfileOwner) {
+            Log.e(TAG, "App is not profile owner in this user - cannot use cross-user binding");
+            showReturnToOwnerHelp();
+            return;
+        }
+
         UserManager um = getSystemService(UserManager.class);
 
         // Get the owner UserHandle - typically has serial 0
-        // Note: On most devices, serial 0 = user ID 0 = owner
         UserHandle ownerUser = um.getUserForSerialNumber(0);
 
         if (ownerUser == null) {
-            // If serial 0 doesn't work, try to find the first user (usually owner)
             List<UserHandle> profiles = um.getUserProfiles();
             Log.w(TAG, "Serial 0 returned null. Available profiles: " + profiles);
             if (!profiles.isEmpty()) {
-                // Find the one with lowest serial (usually owner)
                 long minSerial = Long.MAX_VALUE;
                 for (UserHandle user : profiles) {
                     long serial = um.getSerialNumberForUser(user);
@@ -1018,6 +1060,7 @@ public class SettingsActivity extends AppCompatActivity {
         Intent serviceIntent = new Intent();
         serviceIntent.setClass(this, DeviceOwnerService.class);
 
+        final UserHandle targetUser = ownerUser;
         ServiceConnection connection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
@@ -1037,22 +1080,45 @@ public class SettingsActivity extends AppCompatActivity {
             }
         };
 
-        boolean bound = devicePolicyManager.bindDeviceAdminServiceAsUser(
-                adminComponentName,
-                serviceIntent,
-                connection,
-                Context.BIND_AUTO_CREATE,
-                ownerUser
-        );
+        try {
+            boolean bound = devicePolicyManager.bindDeviceAdminServiceAsUser(
+                    adminComponentName,
+                    serviceIntent,
+                    connection,
+                    Context.BIND_AUTO_CREATE,
+                    targetUser
+            );
 
-        if (!bound) {
-            Log.e(TAG, "Failed to bind to DeviceOwnerService in user 0. " +
-                "isProfileOwner=" + devicePolicyManager.isProfileOwnerApp(getPackageName()) +
-                ", isAffiliated=" + devicePolicyManager.isAffiliatedUser());
-            Toast.makeText(this, "Failed to connect to owner profile", Toast.LENGTH_SHORT).show();
-        } else {
-            Log.i(TAG, "Successfully initiated binding to DeviceOwnerService");
+            if (!bound) {
+                Log.e(TAG, "Failed to bind to DeviceOwnerService. isAffiliated=" +
+                    devicePolicyManager.isAffiliatedUser());
+                showReturnToOwnerHelp();
+            } else {
+                Log.i(TAG, "Successfully initiated binding to DeviceOwnerService");
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException binding to DeviceOwnerService", e);
+            showReturnToOwnerHelp();
         }
+    }
+
+    private void showReturnToOwnerHelp() {
+        String adbCommand = "adb shell \"dumpsys activity service " + getPackageName() +
+            "/com.afwsamples.testdpc.DeviceAdminService switch-user 0\"";
+
+        new AlertDialog.Builder(this)
+            .setTitle("Cannot Switch Profiles")
+            .setMessage("This decoy profile was not set up correctly as profile owner.\n\n" +
+                "To return to the owner profile, use ADB:\n\n" + adbCommand + "\n\n" +
+                "Or go to owner profile and delete this decoy, then recreate it.")
+            .setPositiveButton("Copy ADB Command", (d, w) -> {
+                android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("ADB Command", adbCommand));
+                Toast.makeText(this, "Command copied to clipboard", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     //endregion

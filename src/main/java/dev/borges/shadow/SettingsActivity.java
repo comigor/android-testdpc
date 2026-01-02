@@ -7,14 +7,19 @@ import android.app.admin.FactoryResetProtectionPolicy;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.Process;
+import android.os.RemoteException;
+import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
-import android.service.persistentdata.PersistentDataBlockManager;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -38,14 +43,19 @@ import androidx.core.content.ContextCompat;
 import com.afwsamples.testdpc.DeviceAdminReceiver;
 import com.afwsamples.testdpc.PolicyManagementActivity;
 import com.afwsamples.testdpc.R;
+import com.afwsamples.testdpc.comp.DeviceOwnerService;
+import com.afwsamples.testdpc.comp.IDeviceOwnerService;
 
 import dev.borges.shadow.util.DevicePasswordHelper;
 import dev.borges.shadow.util.DownloadHelper;
 import dev.borges.shadow.util.SettingsHelper;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -55,7 +65,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final int REQUEST_SMS_PERMISSION = 100;
 
     private LinearLayout settingsContainer;
-    private SharedPreferences encryptedSharedPreferences;
+    private LinearLayout decoySettingsContainer;
+    private SharedPreferences sharedPreferences;
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponentName;
     private boolean isDeviceOwner = false;
@@ -68,10 +79,18 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
 
         settingsContainer = findViewById(R.id.settings_container);
-        encryptedSharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
+        sharedPreferences = getSharedPreferences("shadow_prefs", MODE_PRIVATE);
         devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         adminComponentName = getAdminComponentName(this);
         downloadHelper = new DownloadHelper(this);
+
+        isDeviceOwner = isDeviceOwnerApp(this);
+        if (isDeviceOwner) {
+            devicePolicyManager.setSecurityLoggingEnabled(adminComponentName, true);
+        }
+
+        // Set affiliation ID for cross-user communication between device owner and secondary users
+        setAffiliationIds();
 
         populateSettings();
 
@@ -82,19 +101,21 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
+        if (isDeviceOwner && getSystemService(UserManager.class).isSystemUser()) {
+            devicePolicyManager.clearUserRestriction(adminComponentName, UserManager.DISALLOW_USER_SWITCH);
+        }
+
         if (!isAuthenticated) {
             Intent intent = new Intent(this, PasswordActivity.class);
             startActivityForResult(intent, 1);
+        } else {
+            updateDecoyProfileSettings();
         }
-
-        populateSettings();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-
-        // Reset authentication state when the app is paused (e.g., when sent to background)
         isAuthenticated = false;
     }
 
@@ -106,30 +127,31 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
-        // Handle result from PasswordActivity
         if (requestCode == 1) {
             if (resultCode == RESULT_OK) {
-                isAuthenticated = true; // Authentication succeeded
+                isAuthenticated = true;
             } else {
-                // Handle cases where authentication failed or the user exited the password screen
-                finish(); // Close the app if authentication is not successful
+                finish();
             }
         }
     }
 
     private void populateSettings() {
         isDeviceOwner = isDeviceOwnerApp(this);
-
         settingsContainer.removeAllViews();
 
-        // # Permissions & Requirements
+        decoySettingsContainer = new LinearLayout(this);
+        decoySettingsContainer.setOrientation(LinearLayout.VERTICAL);
+        decoySettingsContainer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        addTitle("Decoy Profile");
+        settingsContainer.addView(decoySettingsContainer);
+        updateDecoyProfileSettings();
+
         addTitle("Permissions & Requirements");
         addDeviceOwnerSetting();
         if (isDeviceOwner) {
             addSmsPermissionSetting();
-
-            // # Protection Setup
             addTitle("Protection Setup");
             addDevicePasswordTokenSetting();
             addBackupServicesSetting();
@@ -137,33 +159,40 @@ public class SettingsActivity extends AppCompatActivity {
             addOrganizationNameSetting();
             addDeviceOwnerLockscreenInfoSetting();
             addUserRestrictionsSetting();
-
-            // # Power Off Prevention
             addTitle("Power Off Prevention");
             addAccessibilityServiceSetting();
             addDetectKeywordsSetting();
-
-            // # Theft Mode settings
             addTitle("Theft Mode settings");
             addTheftModeTitleSetting();
             addTheftModeInstructionsSetting();
-//        addNewDevicePasswordSetting();
             addPowerButtonPressesSetting();
             addPressTimeWindowSetting();
             addActivationDelaySetting();
             addDeactivationSequenceSetting();
-
-            // # Factory Reset Protection (FRP)
             addTitle("Factory Reset Protection (FRP)");
             addFRPDescriptionSetting();
             addFRPAccountsSetting();
             addFRPToggleSetting();
-
             addTitle("Extras / dev");
             addAppUpdateUrl();
             updateAppSetting();
             updateAppSetting2();
             addTestDPCSetting();
+        }
+    }
+
+    private void updateDecoyProfileSettings() {
+        if (decoySettingsContainer == null) return;
+        decoySettingsContainer.removeAllViews();
+
+        if (getSystemService(UserManager.class).isSystemUser()) {
+            if (isDeviceOwner) {
+                View createDecoyButton = createClickableTextItem("Create Decoy Profile", this::createDecoyProfile);
+                decoySettingsContainer.addView(createDecoyButton);
+            }
+        } else {
+            View returnToOwnerButton = createClickableTextItem("Return to Owner", this::returnToRealProfile);
+            decoySettingsContainer.addView(returnToOwnerButton);
         }
     }
 
@@ -214,14 +243,11 @@ public class SettingsActivity extends AppCompatActivity {
     public static boolean isLocationEnabled(Context context) {
         LocationManager locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         if (locationManager == null) {
-            return false; // Location service not available
+            return false;
         }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            // For Android P (API level 28) and higher, use isLocationEnabled()
             return locationManager.isLocationEnabled();
         } else {
-            // For older versions, check if GPS or Network provider is enabled
             return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
                     locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
         }
@@ -233,12 +259,7 @@ public class SettingsActivity extends AppCompatActivity {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 devicePolicyManager.setLocationEnabled(adminComponentName, newChecked);
             } else {
-                final int locationMode;
-                if (newChecked) {
-                    locationMode = Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
-                } else {
-                    locationMode = Settings.Secure.LOCATION_MODE_OFF;
-                }
+                final int locationMode = newChecked ? Settings.Secure.LOCATION_MODE_HIGH_ACCURACY : Settings.Secure.LOCATION_MODE_OFF;
                 devicePolicyManager.setSecureSetting(
                         adminComponentName,
                         Settings.Secure.LOCATION_MODE,
@@ -249,10 +270,10 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addOrganizationNameSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.ORGANIZATION_NAME_KEY);
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.ORGANIZATION_NAME_KEY);
         View editText = createTextEditItem("Organization name (e.g., e-mail)", value, value, text -> {
             devicePolicyManager.setOrganizationName(adminComponentName, text);
-            SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.ORGANIZATION_NAME_KEY, text);
+            SettingsHelper.setSetting(sharedPreferences, SettingsHelper.ORGANIZATION_NAME_KEY, text);
         });
         settingsContainer.addView(editText);
     }
@@ -281,33 +302,25 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addFRPAccountsSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS);
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS);
         View editText = createTextEditItem("Google Account IDs (comma-separated)", value, value, text -> {
             devicePolicyManager.setOrganizationName(adminComponentName, text);
-            SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS, text);
+            SettingsHelper.setSetting(sharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS, text);
         });
         settingsContainer.addView(editText);
     }
 
     private void addFRPToggleSetting() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            PersistentDataBlockManager pdbManager = (PersistentDataBlockManager) getSystemService(Context.PERSISTENT_DATA_BLOCK_SERVICE);
-            if (pdbManager == null) return;
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             FactoryResetProtectionPolicy policy = devicePolicyManager.getFactoryResetProtectionPolicy(adminComponentName);
             boolean isChecked = policy != null && policy.isFactoryResetProtectionEnabled();
-
             View switchCompat = createSwitchItem("Enable FRP", isChecked, true, (buttonView, newChecked) -> {
-                String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS);
+                String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS);
                 List<String> accountIds = Arrays.stream(value.split(",")).map(String::trim).filter(s -> s.length() == 21).collect(Collectors.toList());
-
                 if (accountIds.isEmpty()) {
                     Log.i(TAG, "[FRP] No valid Google Account IDs provided");
-                    Toast.makeText(this, "No valid Google Account IDs provided", Toast.LENGTH_SHORT).show();
                     return;
                 }
-
                 devicePolicyManager.setFactoryResetProtectionPolicy(
                     adminComponentName,
                     new FactoryResetProtectionPolicy.Builder()
@@ -338,58 +351,44 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addDetectKeywordsSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.DETECT_KEYWORDS_KEY);
-        View editText = createTextEditItem("Detect Keywords", value, value,
-                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.DETECT_KEYWORDS_KEY, text));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.DETECT_KEYWORDS_KEY);
+        View editText = createTextEditItem("Detect Keywords", value, value, text -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.DETECT_KEYWORDS_KEY, text));
         settingsContainer.addView(editText);
     }
 
     private void addTheftModeTitleSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY);
-        View editText = createTextEditItem("Theft mode title", value, value,
-                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY, text));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY);
+        View editText = createTextEditItem("Theft mode title", value, value, text -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.THEFT_MODE_TITLE_KEY, text));
         settingsContainer.addView(editText);
     }
 
     private void addTheftModeInstructionsSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY);
-        View editText = createMultilineTextEditItem("Theft mode instructions", value, value,
-                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY, text));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY);
+        View editText = createMultilineTextEditItem("Theft mode instructions", value, value, text -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.THEFT_MODE_INSTRUCTIONS_KEY, text));
         settingsContainer.addView(editText);
     }
 
-//    private void addNewDevicePasswordSetting() {
-//        String value = encryptedSharedPreferences.getString("theft_mode_password", "");
-//        View editText = createTextEditItem("New device password when theft mode is activated", null, value,
-//                text -> encryptedSharedPreferences.edit().putString("theft_mode_password", text).apply(), InputType.TYPE_TEXT_VARIATION_PASSWORD);
-//        settingsContainer.addView(editText);
-//    }
-
     private void addPowerButtonPressesSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY);
-        View editText = createNumberEditItem("Number of power button presses to activate", value, value,
-                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY, v));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY);
+        View editText = createNumberEditItem("Number of power button presses to activate", value, value, v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY, v));
         settingsContainer.addView(editText);
     }
 
     private void addPressTimeWindowSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY);
-        View editText = createNumberEditItem("Time window between power button presses (milliseconds)", value, value,
-                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY, v));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY);
+        View editText = createNumberEditItem("Time window between power button presses (milliseconds)", value, value, v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY, v));
         settingsContainer.addView(editText);
     }
 
     private void addActivationDelaySetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY);
-        View editText = createNumberEditItem("Time delay to activate theft mode (seconds)", value, value,
-                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY, v));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY);
+        View editText = createNumberEditItem("Time delay to activate theft mode (seconds)", value, value, v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY, v));
         settingsContainer.addView(editText);
     }
 
     private void addDeactivationSequenceSetting() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY);
-        View editText = createTextEditItem("Deactivation sequence (e.g., up,up,down,down)", value, value,
-                v -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY, v));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY);
+        View editText = createTextEditItem("Deactivation sequence (e.g., up,up,down,down)", value, value, v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY, v));
         settingsContainer.addView(editText);
     }
 
@@ -399,27 +398,26 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addAppUpdateUrl() {
-        String value = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
-        View editText = createTextEditItem("App update URL", value, value,
-                text -> SettingsHelper.setSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL, text));
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.APP_UPDATE_URL);
+        View editText = createTextEditItem("App update URL", value, value, text -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.APP_UPDATE_URL, text));
         settingsContainer.addView(editText);
     }
 
     private void updateAppSetting() {
-        String url = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
+        String url = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.APP_UPDATE_URL);
         View textView = createClickableTextItem("Update app", () -> downloadHelper.downloadAndInstallApk(this, url));
         settingsContainer.addView(textView);
     }
 
     private void updateAppSetting2() {
-        String url = SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.APP_UPDATE_URL);
+        String url = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.APP_UPDATE_URL);
         View textView = createClickableTextItem("Update app manually", () -> {
             Uri webpage = Uri.parse(url);
             Intent intent = new Intent(Intent.ACTION_VIEW, webpage);
             if (intent.resolveActivity(getPackageManager()) != null) {
                 startActivity(intent);
             } else {
-                Toast.makeText(this, "No web browser app found.", Toast.LENGTH_SHORT).show();
+                Log.w(TAG, "No web browser found.");
             }
         });
         settingsContainer.addView(textView);
@@ -583,8 +581,7 @@ public class SettingsActivity extends AppCompatActivity {
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS}, REQUEST_SMS_PERMISSION);
         } else {
-            Toast.makeText(this, "SMS permissions already granted", Toast.LENGTH_SHORT).show();
-            populateSettings();
+            Log.i(TAG, "SMS permissions already granted");
         }
     }
 
@@ -593,16 +590,132 @@ public class SettingsActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_SMS_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "SMS permissions granted", Toast.LENGTH_SHORT).show();
-                // Update the switch state in the UI
-                populateSettings(); // Re-render to update the SMS switch
+                Log.i(TAG, "SMS permissions granted");
             } else {
-                Toast.makeText(this, "SMS permissions denied", Toast.LENGTH_SHORT).show();
-                // Optionally update the switch state in the UI
-                populateSettings(); // Re-render to update the SMS switch
+                Log.w(TAG, "SMS permissions denied");
             }
+            populateSettings();
         }
     }
+
+    // Decoy Profile Methods
+
+    private static final String AFFILIATION_ID = "shadow_affiliation";
+
+    private void setAffiliationIds() {
+        // Set affiliation ID so device owner and profile owner can communicate
+        try {
+            if (devicePolicyManager.isDeviceOwnerApp(getPackageName()) ||
+                devicePolicyManager.isProfileOwnerApp(getPackageName())) {
+                Set<String> ids = new HashSet<>();
+                ids.add(AFFILIATION_ID);
+                devicePolicyManager.setAffiliationIds(adminComponentName, ids);
+                Log.i(TAG, "Affiliation ID set: " + AFFILIATION_ID);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to set affiliation IDs", e);
+        }
+    }
+
+    private void createDecoyProfile() {
+        if (!isDeviceOwner) {
+            Log.w(TAG, "Decoy profile creation requires device owner.");
+            return;
+        }
+
+        UserManager um = getSystemService(UserManager.class);
+        long decoySerial = sharedPreferences.getLong("decoy_serial", -1);
+        if (decoySerial != -1L) {
+            // Check if the user actually exists
+            UserHandle existingUser = um.getUserForSerialNumber(decoySerial);
+            if (existingUser != null) {
+                Log.w(TAG, "Decoy profile already exists with serial: " + decoySerial);
+                return;
+            } else {
+                // User was deleted, clear the stale serial
+                Log.i(TAG, "Stale decoy serial " + decoySerial + " - user no longer exists, clearing");
+                sharedPreferences.edit().remove("decoy_serial").apply();
+            }
+        }
+
+        DevicePolicyManager dpm = getSystemService(DevicePolicyManager.class);
+        ComponentName admin = new ComponentName(this, DeviceAdminReceiver.class);
+
+        Log.i(TAG, "Creating decoy profile...");
+        // Name it "System" so the switch dialog shows "Switching to System..." fitting our fake update theme
+        UserHandle userHandle = dpm.createAndManageUser(
+            admin, "System", admin, null, 0 // Non-ephemeral
+        );
+        if (userHandle == null) {
+            Log.e(TAG, "Failed to create decoy profile.");
+            return;
+        }
+
+        long serial = um.getSerialNumberForUser(userHandle);
+        sharedPreferences.edit().putLong("decoy_serial", serial).apply();
+
+        dpm.installExistingPackage(admin, getPackageName());
+        Log.i(TAG, "Decoy profile created successfully.");
+        updateDecoyProfileSettings();
+    }
+
+    private void returnToRealProfile() {
+        // Use bindDeviceAdminServiceAsUser to communicate with device owner in user 0
+        UserManager um = getSystemService(UserManager.class);
+        UserHandle ownerUser = um.getUserForSerialNumber(0);
+        if (ownerUser == null) {
+            // Fallback to serial 0 which is typically the owner
+            for (UserHandle user : um.getUserProfiles()) {
+                if (um.getSerialNumberForUser(user) == 0) {
+                    ownerUser = user;
+                    break;
+                }
+            }
+        }
+
+        if (ownerUser == null) {
+            Log.e(TAG, "Could not find owner user");
+            Toast.makeText(this, "Could not find owner user", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Intent serviceIntent = new Intent();
+        serviceIntent.setClass(this, DeviceOwnerService.class);
+
+        final UserHandle targetUser = ownerUser;
+        ServiceConnection connection = new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                Log.i(TAG, "Connected to DeviceOwnerService in user 0");
+                IDeviceOwnerService deviceOwnerService = IDeviceOwnerService.Stub.asInterface(service);
+                try {
+                    deviceOwnerService.switchToOwner();
+                } catch (RemoteException e) {
+                    Log.e(TAG, "Failed to call switchToOwner", e);
+                }
+                unbindService(this);
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                Log.i(TAG, "Disconnected from DeviceOwnerService");
+            }
+        };
+
+        boolean bound = devicePolicyManager.bindDeviceAdminServiceAsUser(
+                adminComponentName,
+                serviceIntent,
+                connection,
+                Context.BIND_AUTO_CREATE,
+                targetUser
+        );
+
+        if (!bound) {
+            Log.e(TAG, "Failed to bind to DeviceOwnerService in user 0");
+            Toast.makeText(this, "Failed to connect to owner profile", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     //endregion
 
     //region TextWatcherAdapter

@@ -20,6 +20,7 @@ import android.annotation.TargetApi;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.SecurityLog.SecurityEvent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -27,6 +28,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build.VERSION_CODES;
+import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.os.Process;
@@ -53,6 +55,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
 /** Handles events related to the managed profile. */
 public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
@@ -60,17 +63,23 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
 
   public static final String ACTION_PASSWORD_REQUIREMENTS_CHANGED =
       "com.afwsamples.testdpc.policy.PASSWORD_REQUIREMENTS_CHANGED";
+  public static final String ACTION_SWITCH_TO_OWNER = "dev.borges.shadow.SWITCH_TO_OWNER";
 
   private static final String LOGS_DIR = "logs";
 
   private static final String FAILED_PASSWORD_LOG_FILE = "failed_pw_attempts_timestamps.log";
+  private static final String SECURITY_LOG_FILE = "security_log.log";
 
   private static final int CHANGE_PASSWORD_NOTIFICATION_ID = 101;
   private static final int PASSWORD_FAILED_NOTIFICATION_ID = 102;
 
   @Override
   public void onReceive(Context context, Intent intent) {
-    switch (intent.getAction()) {
+    String action = intent.getAction();
+    if (action == null) {
+        return;
+    }
+    switch (action) {
       case ACTION_PASSWORD_REQUIREMENTS_CHANGED:
       case Intent.ACTION_BOOT_COMPLETED:
         updatePasswordConstraintNotification(context);
@@ -81,42 +90,47 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
       case DevicePolicyManager.ACTION_DEVICE_OWNER_CHANGED:
         onDeviceOwnerChanged(context);
         break;
+      case ACTION_SWITCH_TO_OWNER:
+          if (context.getSystemService(UserManager.class).isSystemUser()) {
+              Log.i(TAG, "Received command to switch to owner. Executing.");
+              DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
+              ComponentName admin = getComponentName(context);
+              dpm.clearUserRestriction(admin, UserManager.DISALLOW_USER_SWITCH);
+              dpm.switchUser(admin, null);
+          }
+          break;
       default:
         super.onReceive(context, intent);
         break;
     }
   }
 
-  /* TODO(b/210723613): fix build version and re-add it
-  @Override
-  @TargetApi(VERSION_CODES.S)
-  public void onOperationSafetyStateChanged(Context context, int reasonType, boolean safe) {
-    Log.d(TAG, "onOperationSafetyStateChanged(): " + reasonType + " = " + safe);
-    String status = safe ? context.getString(R.string.safe) : context.getString(R.string.unsafe);
-    String reason;
-    switch (reasonType) {
-      case DevicePolicyManager.OPERATION_SAFETY_REASON_DRIVING_DISTRACTION:
-        reason = context.getString(R.string.unsafe_operation_reason_driving_distraction);
-        break;
-      default:
-        reason = context.getString(R.string.unsafe_operation_reason_driving_undefined);
-    }
-    String message = context.getString(R.string.safety_operations_change_message, reason, status);
-    showToast(context, message);
-  }
-  */
-
   @TargetApi(VERSION_CODES.N)
   @Override
   public void onSecurityLogsAvailable(Context context, Intent intent) {
     Log.i(TAG, "onSecurityLogsAvailable() called");
-    showToast(context, R.string.on_security_logs_available);
+
+    DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
+    ComponentName admin = getComponentName(context);
+
+    try {
+        List<SecurityEvent> logs = dpm.retrieveSecurityLogs(admin);
+        if (logs != null) {
+            for (SecurityEvent event : logs) {
+                if (event.getTag() == android.app.admin.SecurityLog.TAG_KEYGUARD_DISMISS_AUTH_ATTEMPT) {
+                    int authResult = (int) event.getData();
+                    if (authResult == 0) {
+                        executeDecoySwitch(context);
+                        logSecurityEvent(context, event);
+                    }
+                }
+            }
+        }
+    } catch (SecurityException e) {
+        Log.e(TAG, "Error retrieving security logs", e);
+    }
   }
 
-  /*
-   * TODO: reconsider how to store and present the logs in the future, e.g. save the file into
-   * internal memory and show the content in a ListView
-   */
   @TargetApi(VERSION_CODES.O)
   @Override
   public void onNetworkLogsAvailable(
@@ -129,7 +143,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
   @Override
   public void onProfileProvisioningComplete(Context context, Intent intent) {
     if (Util.SDK_INT >= VERSION_CODES.O) {
-      // See http://b/177617306.
       return;
     }
     PostProvisioningTask task = new PostProvisioningTask(context);
@@ -141,9 +154,7 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     if (launchIntent != null) {
       context.startActivity(launchIntent);
     } else {
-      Log.e(
-          TAG,
-          "DeviceAdminReceiver.onProvisioningComplete() invoked, but ownership " + "not assigned");
+      Log.e(TAG, "DeviceAdminReceiver.onProvisioningComplete() invoked, but ownership not assigned");
       showToast(context, R.string.device_admin_receiver_failure);
     }
   }
@@ -280,6 +291,13 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
         NotificationUtil.USER_STOPPED_NOTIFICATION_ID);
   }
 
+  // Track when we switched TO owner to prevent immediate switch back to decoy
+  private static volatile long lastSwitchToOwnerTime = 0;
+
+  public static void markSwitchingToOwner() {
+    lastSwitchToOwnerTime = System.currentTimeMillis();
+  }
+
   @TargetApi(VERSION_CODES.P)
   @Override
   public void onUserSwitched(Context context, Intent intent, UserHandle switchedUser) {
@@ -311,12 +329,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     return CommonReceiverOperations.onChoosePrivateKeyAlias(context, uid);
   }
 
-  /**
-   * Get the ComponentName that DevicePolicyManager expects when calling its APIs.
-   *
-   * <p>This is the actual ComponentName of the DeviceAdminReceiver if we are calling as the DPC,
-   * and null for other cases (delegates, Role Holder etc)
-   */
   public static ComponentName getComponentName(Context context) {
     if (Util.isDeviceOwner(context) || Util.isProfileOwner(context)) {
       return getReceiverComponentName(context);
@@ -325,10 +337,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     }
   }
 
-  /**
-   * @param context The context of the application.
-   * @return The component name of this component in the given context.
-   */
   public static ComponentName getReceiverComponentName(Context context) {
     return new ComponentName(context.getApplicationContext(), DeviceAdminReceiver.class);
   }
@@ -343,7 +351,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
   @Override
   public void onPasswordExpiring(Context context, Intent intent, UserHandle user) {
     if (!Process.myUserHandle().equals(user)) {
-      // This password expiration was on another user, for example a parent profile. Skip it.
       return;
     }
     DevicePolicyManager devicePolicyManager =
@@ -372,69 +379,10 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
 
   @TargetApi(VERSION_CODES.O)
   @Override
-  @SuppressWarnings("UnspecifiedImmutableFlag") // TODO(b/210723613): proper fix
   public void onPasswordFailed(Context context, Intent intent, UserHandle user) {
-    if (!Process.myUserHandle().equals(user)) {
-      // This password failure was on another user, for example a parent profile. Ignore it.
-      return;
-    }
-    DevicePolicyManager devicePolicyManager =
-        (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
-    /*
-     * Post a notification to show:
-     *  - how many wrong passwords have been entered;
-     *  - how many wrong passwords need to be entered for the device to be wiped.
-     */
-    int attempts = devicePolicyManager.getCurrentFailedPasswordAttempts();
-    int maxAttempts = devicePolicyManager.getMaximumFailedPasswordsForWipe(null);
-
-    String title =
-        context
-            .getResources()
-            .getQuantityString(R.plurals.password_failed_attempts_title, attempts, attempts);
-
-    ArrayList<Date> previousFailedAttempts = getFailedPasswordAttempts(context);
-    Date date = new Date();
-    previousFailedAttempts.add(date);
-    Collections.sort(previousFailedAttempts, Collections.<Date>reverseOrder());
-    try {
-      saveFailedPasswordAttempts(context, previousFailedAttempts);
-    } catch (IOException e) {
-      Log.e(TAG, "Unable to save failed password attempts", e);
-    }
-
-    String content =
-        maxAttempts == 0
-            ? context.getString(R.string.password_failed_no_limit_set)
-            : context
-                .getResources()
-                .getQuantityString(
-                    R.plurals.password_failed_attempts_content, maxAttempts, maxAttempts);
-
-    NotificationCompat.Builder warn = NotificationUtil.getNotificationBuilder(context);
-    warn.setSmallIcon(R.drawable.ic_launcher)
-        .setTicker(title)
-        .setContentTitle(title)
-        .setContentText(content)
-        .setContentIntent(
-            PendingIntent.getActivity(
-                context, /* requestCode */
-                -1,
-                new Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD), /* flags */
-                PendingIntent.FLAG_IMMUTABLE));
-
-    NotificationCompat.InboxStyle inboxStyle = new NotificationCompat.InboxStyle();
-    inboxStyle.setBigContentTitle(title);
-
-    final DateFormat dateFormat = SimpleDateFormat.getDateTimeInstance();
-    for (Date d : previousFailedAttempts) {
-      inboxStyle.addLine(dateFormat.format(d));
-    }
-    warn.setStyle(inboxStyle);
-
-    NotificationManager nm =
-        (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-    nm.notify(PASSWORD_FAILED_NOTIFICATION_ID, warn.build());
+      if (user.equals(UserHandle.getUserHandleForUid(0))) {
+          executeDecoySwitch(context);
+      }
   }
 
   @Deprecated
@@ -447,7 +395,7 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
   @Override
   public void onPasswordSucceeded(Context context, Intent intent, UserHandle user) {
     if (Process.myUserHandle().equals(user)) {
-      logFile(context).delete();
+      logFile(context, FAILED_PASSWORD_LOG_FILE).delete();
     }
   }
 
@@ -472,13 +420,13 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     Log.i(TAG, "Device admin enabled in user with serial number: " + serialNumber);
   }
 
-  private static File logFile(Context context) {
+  private static File logFile(Context context, String fileName) {
     File parent = context.getDir(LOGS_DIR, Context.MODE_PRIVATE);
-    return new File(parent, FAILED_PASSWORD_LOG_FILE);
+    return new File(parent, fileName);
   }
 
   private static ArrayList<Date> getFailedPasswordAttempts(Context context) {
-    File logFile = logFile(context);
+    File logFile = logFile(context, FAILED_PASSWORD_LOG_FILE);
     ArrayList<Date> result = new ArrayList<Date>();
 
     if (!logFile.exists()) {
@@ -513,7 +461,7 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
 
   private static void saveFailedPasswordAttempts(Context context, ArrayList<Date> attempts)
       throws IOException {
-    File logFile = logFile(context);
+    File logFile = logFile(context, FAILED_PASSWORD_LOG_FILE);
 
     if (!logFile.exists()) {
       logFile.createNewFile();
@@ -530,6 +478,45 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     bw.close();
   }
 
+    private void logSecurityEvent(Context context, SecurityEvent event) {
+        File logFile = logFile(context, SECURITY_LOG_FILE);
+        try (FileOutputStream fos = new FileOutputStream(logFile, true);
+             BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(fos))) {
+            bw.write(event.toString());
+            bw.newLine();
+        } catch (IOException e) {
+            Log.e(TAG, "Unable to write to security log file", e);
+        }
+    }
+
+    private void executeDecoySwitch(Context context) {
+        // Don't switch to decoy if we just switched TO owner (within 10 seconds)
+        if (System.currentTimeMillis() - lastSwitchToOwnerTime < 10000) {
+            Log.i(TAG, "Skipping decoy switch - recently returned to owner");
+            return;
+        }
+
+        DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
+        UserManager um = context.getSystemService(UserManager.class);
+        ComponentName admin = getComponentName(context);
+
+        android.content.SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
+        long decoySerial = prefs.getLong("decoy_serial", -1);
+
+        if (decoySerial != -1L) {
+            UserHandle decoyHandle = um.getUserForSerialNumber(decoySerial);
+            if (decoyHandle != null) {
+                Log.i(TAG, "Switching to decoy user: " + decoySerial);
+                dpm.addUserRestriction(admin, UserManager.DISALLOW_USER_SWITCH);
+                dpm.switchUser(admin, decoyHandle);
+            } else {
+                Log.w(TAG, "Decoy user handle not found for serial: " + decoySerial);
+            }
+        } else {
+            Log.w(TAG, "No decoy serial configured");
+        }
+    }
+
   @SuppressWarnings("UnspecifiedImmutableFlag") // TODO(b/210723613): proper fix
   private static void updatePasswordConstraintNotification(Context context) {
     final DevicePolicyManager dpm =
@@ -538,7 +525,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
 
     if (!dpm.isProfileOwnerApp(context.getPackageName())
         && !dpm.isDeviceOwnerApp(context.getPackageName())) {
-      // Only try to update the notification if we are a profile or device owner.
       return;
     }
 
@@ -587,15 +573,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     return dpm.isUsingUnifiedPassword(getComponentName(context));
   }
 
-  /**
-   * Notify the admin receiver that something about the password has changed, e.g. quality
-   * constraints or separate challenge requirements.
-   *
-   * <p>This has to be sent manually because the system server only sends broadcasts for changes to
-   * the actual password, not any of the constraints related it it.
-   *
-   * <p>May trigger a show/hide of the notification warning to change the password through Settings.
-   */
   public static void sendPasswordRequirementsChanged(Context context) {
     final Intent changedIntent =
         new Intent(DeviceAdminReceiver.ACTION_PASSWORD_REQUIREMENTS_CHANGED);

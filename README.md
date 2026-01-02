@@ -19,6 +19,14 @@ Test DPC is an app designed to help EMMs, ISVs, and OEMs to test their applicati
 
 See the [documentation](https://developer.android.com/work/index.html) to learn more about Android in the enterprise.
 
+## a
+
+```
+adb shell "am start-foreground-service --user 0 -n dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminService && sleep 0.5 && dumpsys activity service dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminService switch-user 0"
+
+adb shell "dumpsys activity service dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminService switch-user 0"
+```
+
 ## Getting Started
 
 This sample uses the Bazel build system. To build this project, use the "bazel build testdpc" command.
@@ -46,7 +54,7 @@ You can find various kinds of provisioning methods [here](https://developers.goo
     	"android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://public.borges.dev/shadow/latest.apk"
     }
    ```
-   or use this pre-made QR code:  
+   or use this pre-made QR code:
    ![testdpc_provisioning](qrcode.png)
 
 1. Scan the QR code and follow onscreen instructions:
@@ -103,7 +111,7 @@ TestDPC v9.0.5+ can be setup as Device Management Role Holder.
 
 ## Android Studio import
 
-To import this repository in Android Studio, you need to use the 
+To import this repository in Android Studio, you need to use the
 [Bazel for Android Studio](https://plugins.jetbrains.com/plugin/9185-bazel-for-android-studio)
 Plugin.
 
@@ -148,3 +156,11 @@ Licensed under the Apache 2.0 license. See the LICENSE file for details.
 ## How to make contributions?
 
 Please read and follow the steps in the CONTRIB file.
+
+## Security Log Testing
+
+To test the security logging functionality, you can force the system to make the logs available by running the following adb command:
+
+```console
+adb shell dpm force-security-logs
+```

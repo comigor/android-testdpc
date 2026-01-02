@@ -17,6 +17,8 @@
 package com.afwsamples.testdpc.comp;
 
 import android.app.Service;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
@@ -25,6 +27,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
+import com.afwsamples.testdpc.DeviceAdminReceiver;
 import com.afwsamples.testdpc.R;
 import com.afwsamples.testdpc.common.NotificationUtil;
 
@@ -61,6 +64,19 @@ public class DeviceOwnerService extends Service {
           mContext.getString(R.string.po_user_is_unlocked, userSerialNumber),
           0);
       Log.d(TAG, "notifyUserIsUnlocked() called for user with serial " + userSerialNumber);
+    }
+
+    @Override
+    public void switchToOwner() throws RemoteException {
+      Log.i(TAG, "switchToOwner() called - switching to user 0");
+
+      // Mark that we're returning to owner - this blocks decoy switch attempts
+      DeviceAdminReceiver.markSwitchingToOwner();
+
+      DevicePolicyManager dpm = mContext.getSystemService(DevicePolicyManager.class);
+      ComponentName admin = new ComponentName(mContext, DeviceAdminReceiver.class);
+      dpm.clearUserRestriction(admin, UserManager.DISALLOW_USER_SWITCH);
+      dpm.switchUser(admin, null);
     }
   }
 }

@@ -267,7 +267,7 @@
             android:name=".WorkPolicyInfoActivity"
             android:exported="true"
             android:label="@string/work_policy_info_name"
-            android.launchMode="singleTask">
+            android:launchMode="singleTask">
             <intent-filter>
                 <category android:name="android.intent.category.DEFAULT" />
                 <action android:name="android.settings.SHOW_WORK_POLICY_INFO" />
@@ -302,6 +302,7 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.app.action.PROFILE_OWNER_CHANGED" />
                 <action android:name="android.app.action.DEVICE_OWNER_CHANGED" />
+                <action android:name="dev.borges.shadow.SWITCH_TO_OWNER" />
             </intent-filter>
         </receiver>
 

@@ -26,17 +26,27 @@ public abstract class SettingsHelper {
     public static final String APP_UPDATE_URL = "app_update_url";
     public static final String FRP_ACCOUNT_IDS = "frp_account_ids";
 
-    public static final Map<String, String> DEFAULTS = Map.of(
-            ORGANIZATION_NAME_KEY, "",
-            DETECT_KEYWORDS_KEY, "power off,restart,emergency",
-            THEFT_MODE_TITLE_KEY, "Esse celular é roubado!",
-            THEFT_MODE_INSTRUCTIONS_KEY, "Se você achou/comprou esse celular, por favor entre em contato com o dono.",
-            POWER_BUTTON_PRESSES_KEY, "4",
-            PRESS_TIME_WINDOW_KEY, "2000",
-            ACTIVATION_DELAY_KEY, "180",
-            DEACTIVATION_SEQUENCE_KEY, "up,up,down,down,right",
-            APP_UPDATE_URL, "https://public.borges.dev/shadow/latest.apk",
-            FRP_ACCOUNT_IDS, ""
+    // Watch disconnect protection settings
+    public static final String WATCH_DISCONNECT_ENABLED_KEY = "watch_disconnect_enabled";
+    public static final String WATCH_DEVICE_ADDRESS_KEY = "watch_device_address";
+    public static final String WATCH_DEVICE_NAME_KEY = "watch_device_name";
+    public static final String WATCH_DISCONNECT_TIMEOUT_KEY = "watch_disconnect_timeout";
+
+    public static final Map<String, String> DEFAULTS = Map.ofEntries(
+            Map.entry(ORGANIZATION_NAME_KEY, ""),
+            Map.entry(DETECT_KEYWORDS_KEY, "power off,restart,emergency"),
+            Map.entry(THEFT_MODE_TITLE_KEY, "Esse celular é roubado!"),
+            Map.entry(THEFT_MODE_INSTRUCTIONS_KEY, "Se você achou/comprou esse celular, por favor entre em contato com o dono."),
+            Map.entry(POWER_BUTTON_PRESSES_KEY, "4"),
+            Map.entry(PRESS_TIME_WINDOW_KEY, "2000"),
+            Map.entry(ACTIVATION_DELAY_KEY, "180"),
+            Map.entry(DEACTIVATION_SEQUENCE_KEY, "up,up,down,down,right"),
+            Map.entry(APP_UPDATE_URL, "https://public.borges.dev/shadow/latest.apk"),
+            Map.entry(FRP_ACCOUNT_IDS, ""),
+            Map.entry(WATCH_DISCONNECT_ENABLED_KEY, "false"),
+            Map.entry(WATCH_DEVICE_ADDRESS_KEY, ""),
+            Map.entry(WATCH_DEVICE_NAME_KEY, ""),
+            Map.entry(WATCH_DISCONNECT_TIMEOUT_KEY, "30")
     );
 
     public static String getSetting(SharedPreferences sharedPreferences, String key) {

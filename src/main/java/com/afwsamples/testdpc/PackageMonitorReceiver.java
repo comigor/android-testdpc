@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.UserManager;
 import android.text.TextUtils;
 import androidx.core.app.NotificationCompat;
 import com.afwsamples.testdpc.common.NotificationUtil;
@@ -15,6 +16,12 @@ public class PackageMonitorReceiver extends BroadcastReceiver {
 
   @Override
   public void onReceive(Context context, Intent intent) {
+    // Only show notifications on owner profile (user 0)
+    UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
+    if (um != null && !um.isSystemUser()) {
+      return;
+    }
+
     String action = intent.getAction();
     if (!Intent.ACTION_PACKAGE_ADDED.equals(action)
         && !Intent.ACTION_PACKAGE_REMOVED.equals(action)) {

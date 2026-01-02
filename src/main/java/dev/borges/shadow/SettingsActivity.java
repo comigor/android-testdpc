@@ -3,6 +3,8 @@ package dev.borges.shadow;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.app.admin.DevicePolicyManager;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.app.admin.FactoryResetProtectionPolicy;
 import android.content.ComponentName;
 import android.content.Context;
@@ -186,6 +188,11 @@ public class SettingsActivity extends AppCompatActivity {
             addPressTimeWindowSetting();
             addActivationDelaySetting();
             addDeactivationSequenceSetting();
+            addHiddenAppsSetting();
+            addTitle("Watch Disconnect Protection");
+            addWatchDisconnectEnabledSetting();
+            addWatchDeviceSelectSetting();
+            addWatchDisconnectTimeoutSetting();
             addTitle("Factory Reset Protection (FRP)");
             addFRPDescriptionSetting();
             addFRPAccountsSetting();
@@ -482,6 +489,95 @@ public class SettingsActivity extends AppCompatActivity {
     private void addDeactivationSequenceSetting() {
         String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY);
         View editText = createTextEditItem("Deactivation sequence (e.g., up,up,down,down)", value, value, v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY, v));
+        settingsContainer.addView(editText);
+    }
+
+    private void addHiddenAppsSetting() {
+        View textView = createClickableTextItem("Apps to hide on theft mode", () -> startActivity(new Intent(this, HiddenAppsActivity.class)));
+        settingsContainer.addView(textView);
+    }
+
+    private void addWatchDisconnectEnabledSetting() {
+        boolean isEnabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WATCH_DISCONNECT_ENABLED_KEY));
+        View switchCompat = createSwitchItem("Enable watch disconnect protection", isEnabled, true, (buttonView, newChecked) -> {
+            SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WATCH_DISCONNECT_ENABLED_KEY, newChecked ? "true" : "false");
+            if (newChecked) {
+                // Re-register the receiver when enabling
+                BluetoothWatchReceiver.registerReceiver(getApplicationContext());
+                Toast.makeText(this, "Watch disconnect protection enabled", Toast.LENGTH_SHORT).show();
+            } else {
+                // Cancel any pending disconnect timer when disabling
+                BluetoothWatchReceiver.cancelDisconnectTimer(getApplicationContext());
+                Toast.makeText(this, "Watch disconnect protection disabled", Toast.LENGTH_SHORT).show();
+            }
+        });
+        settingsContainer.addView(createRow(switchCompat, null));
+    }
+
+    private void addWatchDeviceSelectSetting() {
+        String currentName = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WATCH_DEVICE_NAME_KEY);
+        String label = currentName.isEmpty() ? "Select watch device" : "Watch: " + currentName;
+
+        View textView = createClickableTextItem(label, this::showWatchSelectionDialog);
+        settingsContainer.addView(textView);
+    }
+
+    private void showWatchSelectionDialog() {
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter == null) {
+            Toast.makeText(this, "Bluetooth not available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!adapter.isEnabled()) {
+            Toast.makeText(this, "Please enable Bluetooth first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Check for BLUETOOTH_CONNECT permission on Android 12+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 200);
+                return;
+            }
+        }
+
+        Set<BluetoothDevice> pairedDevices = adapter.getBondedDevices();
+        if (pairedDevices.isEmpty()) {
+            Toast.makeText(this, "No paired Bluetooth devices found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Build device list for dialog
+        String[] deviceNames = new String[pairedDevices.size()];
+        String[] deviceAddresses = new String[pairedDevices.size()];
+        int i = 0;
+        for (BluetoothDevice device : pairedDevices) {
+            String name = device.getName();
+            deviceNames[i] = name != null ? name : "Unknown device";
+            deviceAddresses[i] = device.getAddress();
+            i++;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Select Watch Device")
+            .setItems(deviceNames, (dialog, which) -> {
+                String selectedName = deviceNames[which];
+                String selectedAddress = deviceAddresses[which];
+                SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WATCH_DEVICE_NAME_KEY, selectedName);
+                SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WATCH_DEVICE_ADDRESS_KEY, selectedAddress);
+                Toast.makeText(this, "Selected: " + selectedName, Toast.LENGTH_SHORT).show();
+                // Refresh settings to show new selection
+                populateSettings();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void addWatchDisconnectTimeoutSetting() {
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WATCH_DISCONNECT_TIMEOUT_KEY);
+        View editText = createNumberEditItem("Disconnect timeout (seconds)", value, value,
+            v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WATCH_DISCONNECT_TIMEOUT_KEY, v));
         settingsContainer.addView(editText);
     }
 

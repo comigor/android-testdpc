@@ -40,6 +40,8 @@ import androidx.core.app.NotificationCompat;
 import com.afwsamples.testdpc.common.NotificationUtil;
 import com.afwsamples.testdpc.common.Util;
 import com.afwsamples.testdpc.provision.PostProvisioningTask;
+import dev.borges.shadow.PowerButtonReceiver;
+import dev.borges.shadow.util.SettingsHelper;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -384,6 +386,14 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
   @Override
   public void onPasswordFailed(Context context, Intent intent, UserHandle user) {
       if (user.equals(UserHandle.getUserHandleForUid(0))) {
+          // Schedule theft mode countdown (same as power button trigger)
+          android.content.SharedPreferences settingsPrefs = SettingsHelper.getEncryptedSharedPreferences(context);
+          long delayMs = Integer.parseInt(SettingsHelper.getSetting(settingsPrefs, SettingsHelper.ACTIVATION_DELAY_KEY)) * 1000L;
+          long activationTime = System.currentTimeMillis() + delayMs;
+          PowerButtonReceiver.schedulePendingTheftMode(context, activationTime);
+          Log.i(TAG, "Wrong PIN detected - theft mode scheduled in " + (delayMs/1000) + " seconds");
+
+          // Also immediately switch to decoy profile
           executeDecoySwitch(context);
       }
   }
@@ -550,6 +560,11 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
 
     if (!dpm.isProfileOwnerApp(context.getPackageName())
         && !dpm.isDeviceOwnerApp(context.getPackageName())) {
+      return;
+    }
+
+    // Only show notifications on owner profile (user 0)
+    if (!um.isSystemUser()) {
       return;
     }
 

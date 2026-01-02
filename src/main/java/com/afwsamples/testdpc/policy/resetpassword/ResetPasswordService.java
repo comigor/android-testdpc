@@ -179,11 +179,21 @@ public class ResetPasswordService extends Service {
     } else {
       builder.setContentText(getString(R.string.reset_password_with_token_failed));
     }
+    // Only show notifications on owner profile (user 0)
+    UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);
+    if (um != null && !um.isSystemUser()) {
+      return;
+    }
     mNm.notify(NOTIFICATION_RESET_RESULT, builder.build());
   }
 
   @SuppressWarnings("UnspecifiedImmutableFlag") // TODO(b/210723613): proper fix
   private void showNotification() {
+    // Only show notifications on owner profile (user 0)
+    UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);
+    if (um != null && !um.isSystemUser()) {
+      return;
+    }
     PendingIntent intent =
         PendingIntent.getBroadcast(this, 0, new Intent(ACTION_RESET_PASSWORD),
             PendingIntent.FLAG_IMMUTABLE);

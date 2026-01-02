@@ -27,6 +27,8 @@ import java.util.List;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -70,6 +72,14 @@ public class TheftModeActivity extends Activity {
             );
             mDevicePolicyManager.addPersistentPreferredActivity(
                     mAdminComponentName, Util.getHomeIntentFilter(), customLauncher);
+
+            // Disable fingerprint access
+            Log.i(TAG, "Disabling fingerprint access");
+            dev.borges.shadow.util.PasswordHelper.deleteBiometricKey();
+
+            // Hide selected apps (only on user 0)
+            Log.i(TAG, "Hiding selected apps");
+            HiddenAppsActivity.hideSelectedApps(context);
 
             Log.i(TAG, "Starting (home) activity");
             Intent launchIntent = Util.getHomeIntent();
@@ -333,6 +343,16 @@ public class TheftModeActivity extends Activity {
             if (lastGestures.equals(correctGestureSequence)) {
                 mPasswordEditText.setVisibility(View.VISIBLE);
                 mPasswordEditText.requestFocus();
+                // Allow keyboard to resize the screen
+                getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE |
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+                // Explicitly show keyboard
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    mPasswordEditText.postDelayed(() -> {
+                        imm.showSoftInput(mPasswordEditText, InputMethodManager.SHOW_FORCED);
+                    }, 100);
+                }
                 mGestureSequence.clear();
             }
         }

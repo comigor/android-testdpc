@@ -94,6 +94,11 @@
     <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_RESET_PASSWORD" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
+    <!-- Bluetooth permissions for watch disconnect protection -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
     <application
         android:allowBackup="true"
         android:banner="@drawable/ic_launcher"
@@ -149,6 +154,17 @@
             android:name="dev.borges.shadow.TheftModeAlarmReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <receiver
+            android:name="dev.borges.shadow.WatchDisconnectAlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <activity
+            android:name="dev.borges.shadow.HiddenAppsActivity"
+            android:exported="false"
+            android:label="Hidden Apps"
+            android:theme="@style/Theme.AppCompat.Light" />
 
         <activity
             android:name="dev.borges.shadow.TheftModeActivity"

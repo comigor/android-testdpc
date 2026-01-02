@@ -5,6 +5,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.os.Build.VERSION_CODES;
+import android.os.UserManager;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
 import androidx.core.app.NotificationCompat;
@@ -27,6 +28,12 @@ public class NotificationUtil {
 
   public static void showNotification(
       Context context, @StringRes int titleId, String msg, int notificationId) {
+    // Only show notifications on owner profile (user 0)
+    UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
+    if (um != null && !um.isSystemUser()) {
+      return;
+    }
+
     NotificationManager notificationManager =
         (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
     Notification notification =

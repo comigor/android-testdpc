@@ -19,10 +19,13 @@ import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build.VERSION_CODES;
+import android.os.UserManager;
 import androidx.annotation.RequiresApi;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import android.content.Context;
+import dev.borges.shadow.BluetoothWatchReceiver;
+import dev.borges.shadow.PowerButtonReceiver;
 
 /**
  * To allow DPC process to be persistent and foreground.
@@ -38,6 +41,13 @@ public class DeviceAdminService extends android.app.admin.DeviceAdminService {
   public void onCreate() {
     super.onCreate();
     registerPackageChangesReceiver();
+
+    // Register receivers on owner profile (user 0) only
+    UserManager um = getSystemService(UserManager.class);
+    if (um != null && um.isSystemUser()) {
+      PowerButtonReceiver.registerReceiver(getApplicationContext());
+      BluetoothWatchReceiver.registerReceiver(getApplicationContext());
+    }
   }
 
   @Override

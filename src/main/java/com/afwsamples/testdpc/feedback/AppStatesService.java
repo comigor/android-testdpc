@@ -17,7 +17,9 @@ package com.afwsamples.testdpc.feedback;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.Context;
 import android.os.Build.VERSION_CODES;
+import android.os.UserManager;
 import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.app.NotificationCompat;
@@ -101,6 +103,11 @@ public class AppStatesService extends KeyedAppStatesService {
                     + state.getMessage()
                     + ")"
                     + (requestSync ? "\nSYNC REQUESTED" : ""));
+    // Only show notifications on owner profile (user 0)
+    UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);
+    if (um != null && !um.isSystemUser()) {
+      return;
+    }
     NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
     notificationManager.notify(getIdForState(state), notificationBuilder.build());
   }

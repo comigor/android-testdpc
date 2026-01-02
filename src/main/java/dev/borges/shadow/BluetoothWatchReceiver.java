@@ -23,7 +23,10 @@ import dev.borges.shadow.util.SettingsHelper;
 public class BluetoothWatchReceiver extends BroadcastReceiver {
     private static final String TAG = "BluetoothWatchReceiver";
     private static final String PREF_WATCH_DISCONNECT_TIME = "watch_disconnect_time";
+    private static final String PREF_WRIST_REMOVAL_TIME = "wrist_removal_time";
     private static final String ACTION_WATCH_DISCONNECT_ALARM = "dev.borges.shadow.WATCH_DISCONNECT_ALARM";
+    private static final int ALARM_REQUEST_DISCONNECT = 1;
+    private static final int ALARM_REQUEST_WRIST_REMOVAL = 2;
     private static BluetoothWatchReceiver singleton;
 
     public static synchronized void registerReceiver(Context context) {
@@ -224,7 +227,7 @@ public class BluetoothWatchReceiver extends BroadcastReceiver {
         intent.setAction(ACTION_WATCH_DISCONNECT_ALARM);
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
-            context, 1, intent,  // Use request code 1 to differentiate from theft mode alarm
+            context, ALARM_REQUEST_DISCONNECT, intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
@@ -253,11 +256,145 @@ public class BluetoothWatchReceiver extends BroadcastReceiver {
         intent.setAction(ACTION_WATCH_DISCONNECT_ALARM);
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
-            context, 1, intent,
+            context, ALARM_REQUEST_DISCONNECT, intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
         alarmManager.cancel(pendingIntent);
         Log.i(TAG, "Disconnect alarm cancelled");
+    }
+
+    // ==================== WRIST REMOVAL TIMEOUT ====================
+    // Similar to disconnect timeout, but triggered by watch off-wrist event.
+    // Can be cancelled by putting watch back on, but once theft mode is
+    // triggered, putting watch back on won't cancel it.
+
+    /**
+     * Start wrist removal timer. If watch isn't put back on wrist within timeout,
+     * theft mode will be triggered.
+     */
+    public static void startWristRemovalTimer(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
+        SharedPreferences settingsPrefs = SettingsHelper.getEncryptedSharedPreferences(context);
+
+        int timeoutSeconds = SettingsHelper.parseInt(
+            SettingsHelper.getSetting(settingsPrefs, SettingsHelper.WRIST_REMOVAL_TIMEOUT_KEY),
+            30
+        );
+
+        long removalTime = System.currentTimeMillis();
+        long alarmTime = removalTime + (timeoutSeconds * 1000L);
+
+        prefs.edit().putLong(PREF_WRIST_REMOVAL_TIME, removalTime).apply();
+        Log.i(TAG, "Wrist removal timer started. Theft mode will trigger in " + timeoutSeconds + " seconds if watch isn't put back on.");
+
+        scheduleWristRemovalAlarm(context, alarmTime);
+    }
+
+    /**
+     * Cancel wrist removal timer (called when watch is put back on wrist).
+     */
+    public static void cancelWristRemovalTimer(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
+        long removalTime = prefs.getLong(PREF_WRIST_REMOVAL_TIME, 0);
+
+        if (removalTime > 0) {
+            prefs.edit().remove(PREF_WRIST_REMOVAL_TIME).apply();
+            cancelWristRemovalAlarm(context);
+            Log.i(TAG, "Wrist removal timer cancelled - watch put back on");
+        }
+    }
+
+    /**
+     * Check if wrist removal timeout has passed and trigger theft mode if so.
+     * Called by WatchDisconnectAlarmReceiver.
+     */
+    public static void checkWristRemovalTimeout(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
+        SharedPreferences settingsPrefs = SettingsHelper.getEncryptedSharedPreferences(context);
+
+        long removalTime = prefs.getLong(PREF_WRIST_REMOVAL_TIME, 0);
+        if (removalTime == 0) {
+            Log.d(TAG, "No pending wrist removal timer");
+            return;
+        }
+
+        int timeoutSeconds = SettingsHelper.parseInt(
+            SettingsHelper.getSetting(settingsPrefs, SettingsHelper.WRIST_REMOVAL_TIMEOUT_KEY),
+            30
+        );
+
+        long now = System.currentTimeMillis();
+        long elapsedSeconds = (now - removalTime) / 1000;
+
+        if (elapsedSeconds >= timeoutSeconds) {
+            Log.w(TAG, "Wrist removal timeout reached (" + elapsedSeconds + "s >= " + timeoutSeconds + "s). Triggering theft mode!");
+
+            // Clear the removal timer
+            prefs.edit().remove(PREF_WRIST_REMOVAL_TIME).apply();
+
+            // Get activation delay for theft mode
+            long activationDelayMs = SettingsHelper.parseInt(
+                SettingsHelper.getSetting(settingsPrefs, SettingsHelper.ACTIVATION_DELAY_KEY),
+                180
+            ) * 1000L;
+
+            // Schedule theft mode activation
+            long activationTime = now + activationDelayMs;
+            PowerButtonReceiver.schedulePendingTheftMode(context, activationTime);
+
+            Log.i(TAG, "Theft mode scheduled to activate in " + (activationDelayMs / 1000) + " seconds");
+        } else {
+            Log.d(TAG, "Wrist removal timeout not yet reached (" + elapsedSeconds + "s < " + timeoutSeconds + "s)");
+        }
+    }
+
+    /**
+     * Check if a wrist removal timer is currently pending.
+     */
+    public static boolean isWristRemovalPending(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
+        return prefs.getLong(PREF_WRIST_REMOVAL_TIME, 0) > 0;
+    }
+
+    private static void scheduleWristRemovalAlarm(Context context, long alarmTime) {
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Intent intent = new Intent(context, WatchDisconnectAlarmReceiver.class);
+        intent.setAction("dev.borges.shadow.WRIST_REMOVAL_ALARM");
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+            context, ALARM_REQUEST_WRIST_REMOVAL, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+                } else {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+                }
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+            }
+            Log.i(TAG, "Wrist removal alarm scheduled");
+        } catch (SecurityException e) {
+            Log.e(TAG, "Failed to schedule exact alarm, using inexact", e);
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent);
+        }
+    }
+
+    private static void cancelWristRemovalAlarm(Context context) {
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Intent intent = new Intent(context, WatchDisconnectAlarmReceiver.class);
+        intent.setAction("dev.borges.shadow.WRIST_REMOVAL_ALARM");
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+            context, ALARM_REQUEST_WRIST_REMOVAL, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        alarmManager.cancel(pendingIntent);
+        Log.i(TAG, "Wrist removal alarm cancelled");
     }
 }

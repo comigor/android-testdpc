@@ -32,6 +32,12 @@ public abstract class SettingsHelper {
     public static final String WATCH_DEVICE_NAME_KEY = "watch_device_name";
     public static final String WATCH_DISCONNECT_TIMEOUT_KEY = "watch_disconnect_timeout";
 
+    // Wrist detection state (persisted for reboot survival)
+    public static final String WRIST_LAST_KNOWN_STATE_KEY = "wrist_last_known_state";
+    public static final String WRIST_LAST_UPDATE_TIME_KEY = "wrist_last_update_time";
+    public static final String WRIST_DETECTION_ENABLED_KEY = "wrist_detection_enabled";
+    public static final String WRIST_REMOVAL_TIMEOUT_KEY = "wrist_removal_timeout";
+
     public static final Map<String, String> DEFAULTS = Map.ofEntries(
             Map.entry(ORGANIZATION_NAME_KEY, ""),
             Map.entry(DETECT_KEYWORDS_KEY, "power off,restart,emergency"),
@@ -46,7 +52,11 @@ public abstract class SettingsHelper {
             Map.entry(WATCH_DISCONNECT_ENABLED_KEY, "false"),
             Map.entry(WATCH_DEVICE_ADDRESS_KEY, ""),
             Map.entry(WATCH_DEVICE_NAME_KEY, ""),
-            Map.entry(WATCH_DISCONNECT_TIMEOUT_KEY, "30")
+            Map.entry(WATCH_DISCONNECT_TIMEOUT_KEY, "30"),
+            Map.entry(WRIST_LAST_KNOWN_STATE_KEY, "unknown"),
+            Map.entry(WRIST_LAST_UPDATE_TIME_KEY, "0"),
+            Map.entry(WRIST_DETECTION_ENABLED_KEY, "false"),
+            Map.entry(WRIST_REMOVAL_TIMEOUT_KEY, "30")
     );
 
     public static String getSetting(SharedPreferences sharedPreferences, String key) {

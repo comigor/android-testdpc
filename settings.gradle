@@ -23,6 +23,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Test DPC"
 include ':app'
+include ':wear'
 
 include ':setupdesign'
 project(':setupdesign').projectDir = new File("setupdesign-4634dac90e3c09a78c2fcdfcb16ab9cb16265527")

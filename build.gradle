@@ -65,9 +65,9 @@ ext {
     // 1 or more digits
     versionMajor = 9
     // exactly 1 digiT
-    versionMinor = 0
+    versionMinor = 1
     // exactly 2 digits
-    versionBuild = 38
+    versionBuild = 2
 }
 
 android {
@@ -84,10 +84,27 @@ android {
         multiDexEnabled true
     }
 
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("SHADOW_KEYSTORE_PATH")
+            if (keystorePath != null && file(keystorePath).exists()) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("SHADOW_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("SHADOW_KEY_ALIAS")
+                keyPassword System.getenv("SHADOW_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            def keystorePath = System.getenv("SHADOW_KEYSTORE_PATH")
+            if (keystorePath != null && file(keystorePath).exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -137,6 +154,58 @@ dependencies {
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
     implementation("com.github.tonyofrancis.Fetch:fetch2:3.4.1")
 
+    // Wearable Data Layer API for watch communication
+    implementation("com.google.android.gms:play-services-wearable:18.1.0")
+
     api project(path: ':setupcompat')
     api project(path: ':setupdesign')
+}
+
+// Task to copy wear DEBUG APK to phone app assets for OTA installation
+task copyWearDebugApkToAssets(type: Copy) {
+    from("wear/build/outputs/apk/debug/wear-debug.apk")
+    into("src/main/assets")
+    rename { "wear-debug.apk" }
+}
+
+// Task to copy wear RELEASE APK to phone app assets for OTA installation
+// Handles both signed (wear-release.apk) and unsigned (wear-release-unsigned.apk)
+task copyWearReleaseApkToAssets {
+    dependsOn(":wear:assembleRelease")
+
+    doLast {
+        def releaseDir = file("wear/build/outputs/apk/release")
+        def signedApk = new File(releaseDir, "wear-release.apk")
+        def unsignedApk = new File(releaseDir, "wear-release-unsigned.apk")
+        def destDir = file("src/main/assets")
+        def destFile = new File(destDir, "wear-release.apk")
+
+        destDir.mkdirs()
+
+        if (signedApk.exists()) {
+            println "Copying signed wear APK: ${signedApk.name}"
+            destFile.bytes = signedApk.bytes
+        } else if (unsignedApk.exists()) {
+            println "Copying unsigned wear APK: ${unsignedApk.name}"
+            destFile.bytes = unsignedApk.bytes
+        } else {
+            throw new GradleException("No wear release APK found in ${releaseDir}")
+        }
+
+        println "Wear APK copied to: ${destFile} (${destFile.length() / 1024} KB)"
+    }
+}
+
+// Make sure wear APK is built before copying
+tasks.named("copyWearDebugApkToAssets").configure {
+    dependsOn(":wear:assembleDebug")
+}
+
+// Copy wear APK before processing resources
+tasks.matching { it.name == "mergeDebugAssets" }.configureEach {
+    dependsOn(copyWearDebugApkToAssets)
+}
+
+tasks.matching { it.name == "mergeReleaseAssets" }.configureEach {
+    dependsOn(copyWearReleaseApkToAssets)
 }

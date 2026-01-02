@@ -1,0 +1,67 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.borges.shadow.wear'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "dev.borges.shadow"
+        minSdk 30
+        targetSdk 34
+        versionCode rootProject.ext.versionMajor * 1000 + rootProject.ext.versionMinor * 100 + rootProject.ext.versionBuild
+        versionName "${rootProject.ext.versionMajor}.${rootProject.ext.versionMinor}.${rootProject.ext.versionBuild}"
+    }
+
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("SHADOW_KEYSTORE_PATH")
+            if (keystorePath != null && file(keystorePath).exists()) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("SHADOW_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("SHADOW_KEY_ALIAS")
+                keyPassword System.getenv("SHADOW_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            def keystorePath = System.getenv("SHADOW_KEYSTORE_PATH")
+            if (keystorePath != null && file(keystorePath).exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    // ONLY what we actually need - no appcompat bloat
+    implementation 'com.google.android.gms:play-services-wearable:18.1.0'
+    // Minimal core for notifications
+    implementation 'androidx.core:core:1.12.0'
+}
+
+// Fix Kotlin stdlib conflicts
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+    }
+}

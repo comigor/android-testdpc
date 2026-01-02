@@ -94,8 +94,13 @@ public class SettingsActivity extends AppCompatActivity {
         downloadHelper = new DownloadHelper(this);
 
         isDeviceOwner = isDeviceOwnerApp(this);
-        if (isDeviceOwner) {
-            devicePolicyManager.setSecurityLoggingEnabled(adminComponentName, true);
+        if (isDeviceOwner && getSystemService(UserManager.class).isSystemUser()) {
+            try {
+                devicePolicyManager.setSecurityLoggingEnabled(adminComponentName, true);
+            } catch (SecurityException e) {
+                Log.e(TAG, "Failed to enable security logging - admin may be invalid", e);
+                isDeviceOwner = false; // Admin is broken, treat as non-device-owner
+            }
         }
 
         // Set affiliation ID for cross-user communication between device owner and secondary users
@@ -193,6 +198,13 @@ public class SettingsActivity extends AppCompatActivity {
             addWatchDisconnectEnabledSetting();
             addWatchDeviceSelectSetting();
             addWatchDisconnectTimeoutSetting();
+            addTitle("Watch Companion App");
+            addWatchAppInstallerSetting();
+            addWatchAppStatusSetting();
+            addTitle("Wrist Detection (Wear OS)");
+            addWristDetectionEnabledSetting();
+            addWristRemovalTimeoutSetting();
+            addWristDetectionDescription();
             addTitle("Factory Reset Protection (FRP)");
             addFRPDescriptionSetting();
             addFRPAccountsSetting();
@@ -581,6 +593,115 @@ public class SettingsActivity extends AppCompatActivity {
         settingsContainer.addView(editText);
     }
 
+    private WatchAppInstaller watchAppInstaller;
+
+    private void addWatchAppInstallerSetting() {
+        if (watchAppInstaller == null) {
+            watchAppInstaller = new WatchAppInstaller(this);
+        }
+
+        View textView = createClickableTextItem("Install/Update Watch App", () -> {
+            Toast.makeText(this, "Sending watch app...", Toast.LENGTH_SHORT).show();
+            watchAppInstaller.sendWatchApk(new WatchAppInstaller.InstallCallback() {
+                @Override
+                public void onSuccess(String message) {
+                    runOnUiThread(() -> {
+                        new AlertDialog.Builder(SettingsActivity.this)
+                            .setTitle("Watch App")
+                            .setMessage(message)
+                            .setPositiveButton("OK", null)
+                            .show();
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> Toast.makeText(SettingsActivity.this, error, Toast.LENGTH_LONG).show());
+                }
+
+                @Override
+                public void onProgress(String status) {
+                    runOnUiThread(() -> Toast.makeText(SettingsActivity.this, status, Toast.LENGTH_SHORT).show());
+                }
+            });
+        });
+        settingsContainer.addView(textView);
+    }
+
+    private void addWatchAppStatusSetting() {
+        if (watchAppInstaller == null) {
+            watchAppInstaller = new WatchAppInstaller(this);
+        }
+
+        View textView = createClickableTextItem("Check Watch App Status", () -> {
+            watchAppInstaller.checkWatchAppInstalled(new WatchAppInstaller.InstallCallback() {
+                @Override
+                public void onSuccess(String message) {
+                    runOnUiThread(() -> {
+                        new AlertDialog.Builder(SettingsActivity.this)
+                            .setTitle("Watch App Status")
+                            .setMessage(message)
+                            .setPositiveButton("OK", null)
+                            .show();
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        new AlertDialog.Builder(SettingsActivity.this)
+                            .setTitle("Watch App Status")
+                            .setMessage(error + "\n\nUse 'Install/Update Watch App' to install it.")
+                            .setPositiveButton("OK", null)
+                            .show();
+                    });
+                }
+
+                @Override
+                public void onProgress(String status) {
+                    runOnUiThread(() -> Toast.makeText(SettingsActivity.this, status, Toast.LENGTH_SHORT).show());
+                }
+            });
+        });
+        settingsContainer.addView(textView);
+    }
+
+    private void addWristDetectionEnabledSetting() {
+        boolean isEnabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WRIST_DETECTION_ENABLED_KEY));
+        View switchCompat = createSwitchItem("Enable wrist detection", isEnabled, true, (buttonView, newChecked) -> {
+            SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WRIST_DETECTION_ENABLED_KEY, newChecked ? "true" : "false");
+            if (newChecked) {
+                Toast.makeText(this, "Wrist detection enabled - will trigger theft mode when watch removed", Toast.LENGTH_LONG).show();
+            } else {
+                // Clear any pending wrist-triggered theft mode
+                PowerButtonReceiver.clearPendingTheftMode(this);
+                Toast.makeText(this, "Wrist detection disabled", Toast.LENGTH_SHORT).show();
+            }
+        });
+        settingsContainer.addView(switchCompat);
+    }
+
+    private void addWristRemovalTimeoutSetting() {
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WRIST_REMOVAL_TIMEOUT_KEY);
+        View editText = createNumberEditItem("Wrist removal timeout (seconds)", value, value,
+            v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WRIST_REMOVAL_TIMEOUT_KEY, v));
+        settingsContainer.addView(editText);
+    }
+
+    private void addWristDetectionDescription() {
+        TextView descText = new TextView(this);
+        descText.setText("When enabled, removing the watch from your wrist will trigger theft mode countdown.\n\n" +
+            "IMPORTANT:\n" +
+            "• Requires Wear OS companion app installed on watch\n" +
+            "• Watch must be connected via Bluetooth\n" +
+            "• Also triggers if watch disconnects while on-wrist\n" +
+            "• Use 'Install/Update Watch App' above to install");
+        descText.setTextSize(12);
+        descText.setTextColor(0xFFAAAAAA);
+        descText.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(16));
+        settingsContainer.addView(descText);
+    }
+
     private void addTestDPCSetting() {
         View textView = createClickableTextItem("Test DPC", () -> startActivity(new Intent(this, PolicyManagementActivity.class)));
         settingsContainer.addView(textView);
@@ -749,7 +870,17 @@ public class SettingsActivity extends AppCompatActivity {
         if (devicePolicyManager == null || adminComponentName == null) {
             return false;
         }
-        return devicePolicyManager.isDeviceOwnerApp(context.getPackageName());
+        if (!devicePolicyManager.isDeviceOwnerApp(context.getPackageName())) {
+            return false;
+        }
+        // Verify we can actually use device owner APIs (UID must match)
+        try {
+            devicePolicyManager.isBackupServiceEnabled(adminComponentName);
+            return true;
+        } catch (SecurityException e) {
+            Log.e(TAG, "Device owner APIs not functional - UID mismatch?", e);
+            return false;
+        }
     }
 
     private ComponentName getAdminComponentName(Context context) {
@@ -853,13 +984,24 @@ public class SettingsActivity extends AppCompatActivity {
     private void returnToRealProfile() {
         // Use bindDeviceAdminServiceAsUser to communicate with device owner in user 0
         UserManager um = getSystemService(UserManager.class);
+
+        // Get the owner UserHandle - typically has serial 0
+        // Note: On most devices, serial 0 = user ID 0 = owner
         UserHandle ownerUser = um.getUserForSerialNumber(0);
+
         if (ownerUser == null) {
-            // Fallback to serial 0 which is typically the owner
-            for (UserHandle user : um.getUserProfiles()) {
-                if (um.getSerialNumberForUser(user) == 0) {
-                    ownerUser = user;
-                    break;
+            // If serial 0 doesn't work, try to find the first user (usually owner)
+            List<UserHandle> profiles = um.getUserProfiles();
+            Log.w(TAG, "Serial 0 returned null. Available profiles: " + profiles);
+            if (!profiles.isEmpty()) {
+                // Find the one with lowest serial (usually owner)
+                long minSerial = Long.MAX_VALUE;
+                for (UserHandle user : profiles) {
+                    long serial = um.getSerialNumberForUser(user);
+                    if (serial < minSerial) {
+                        minSerial = serial;
+                        ownerUser = user;
+                    }
                 }
             }
         }
@@ -870,10 +1012,12 @@ public class SettingsActivity extends AppCompatActivity {
             return;
         }
 
+        long ownerSerial = um.getSerialNumberForUser(ownerUser);
+        Log.i(TAG, "returnToRealProfile: targeting owner user: " + ownerUser + " (serial=" + ownerSerial + ")");
+
         Intent serviceIntent = new Intent();
         serviceIntent.setClass(this, DeviceOwnerService.class);
 
-        final UserHandle targetUser = ownerUser;
         ServiceConnection connection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
@@ -898,12 +1042,16 @@ public class SettingsActivity extends AppCompatActivity {
                 serviceIntent,
                 connection,
                 Context.BIND_AUTO_CREATE,
-                targetUser
+                ownerUser
         );
 
         if (!bound) {
-            Log.e(TAG, "Failed to bind to DeviceOwnerService in user 0");
+            Log.e(TAG, "Failed to bind to DeviceOwnerService in user 0. " +
+                "isProfileOwner=" + devicePolicyManager.isProfileOwnerApp(getPackageName()) +
+                ", isAffiliated=" + devicePolicyManager.isAffiliatedUser());
             Toast.makeText(this, "Failed to connect to owner profile", Toast.LENGTH_SHORT).show();
+        } else {
+            Log.i(TAG, "Successfully initiated binding to DeviceOwnerService");
         }
     }
 

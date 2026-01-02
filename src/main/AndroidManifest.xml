@@ -125,7 +125,7 @@
         <activity
             android:name="dev.borges.shadow.PasswordActivity"
             android:exported="false"
-            android:theme="@style/Theme.AppCompat" />
+            android:theme="@style/SettingsTheme" />
 
         <receiver
             android:name="dev.borges.shadow.SmsReceiver"
@@ -160,11 +160,41 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- Listener for messages from Wear OS watch app -->
+        <service
+            android:name="dev.borges.shadow.WatchMessageListenerService"
+            android:exported="true">
+            <!-- Listen for messages from watch -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/shadow" />
+            </intent-filter>
+            <!-- Listen for persistent data changes from watch -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/shadow/wrist_data" />
+            </intent-filter>
+            <!-- CRITICAL: Listen for watch capability changes (connect/disconnect) -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CAPABILITY_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/shadow_watch_app" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name="dev.borges.shadow.HiddenAppsActivity"
             android:exported="false"
             android:label="Hidden Apps"
-            android:theme="@style/Theme.AppCompat.Light" />
+            android:theme="@style/SettingsTheme" />
 
         <activity
             android:name="dev.borges.shadow.TheftModeActivity"
@@ -209,7 +239,7 @@
             android:enabled="true"
             android:exported="true"
             android:label="Shadow"
-            android:theme="@style/Theme.AppCompat">
+            android:theme="@style/SettingsTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -392,7 +422,7 @@
             android:name="com.afwsamples.testdpc.UserIconContentProvider"
             android:authorities="dev.borges.shadow.usericoncontentprovider"
             android:exported="true"
-            android:grantUriPermissions="true"></provider>
+            android:grantUriPermissions="true" />
 
         <service
             android:name=".profilepolicy.apprestrictions.AppRestrictionsProxy"

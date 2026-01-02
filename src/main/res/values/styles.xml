@@ -30,6 +30,15 @@
         <item name="android:windowNoTitle">true</item>
     </style>
 
+    <style name="SettingsTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:statusBarColor">#1a1a1a</item>
+        <item name="android:windowBackground">#303030</item>
+        <item name="android:colorBackground">#303030</item>
+    </style>
+
     <style name="contentContainer">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">match_parent</item>

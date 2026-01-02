@@ -4,16 +4,23 @@ import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyPermanentlyInvalidatedException;
+import android.security.keystore.KeyProperties;
 import android.util.Log;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKeys;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
@@ -114,5 +121,109 @@ public class PasswordHelper {
             e.printStackTrace();
         }
         return null;
+    }
+
+    // ============ Biometric Key Management ============
+    // The key is invalidated when new fingerprints are enrolled
+
+    private static final String BIOMETRIC_KEY_NAME = "shadow_biometric_key";
+
+    /**
+     * Generates a key in Android KeyStore that will be invalidated if new biometrics are enrolled.
+     * Call this after user successfully authenticates with password.
+     */
+    public static void generateBiometricKey() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+
+            // Delete existing key if any
+            if (keyStore.containsAlias(BIOMETRIC_KEY_NAME)) {
+                keyStore.deleteEntry(BIOMETRIC_KEY_NAME);
+            }
+
+            KeyGenerator keyGenerator = KeyGenerator.getInstance(
+                KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+
+            keyGenerator.init(new KeyGenParameterSpec.Builder(
+                BIOMETRIC_KEY_NAME,
+                KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+                .setUserAuthenticationRequired(true)
+                .setInvalidatedByBiometricEnrollment(true)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                .build());
+
+            keyGenerator.generateKey();
+            Log.i(TAG, "Biometric key generated successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to generate biometric key", e);
+        }
+    }
+
+    /**
+     * Checks if the biometric key exists and is still valid.
+     * Returns false if:
+     * - Key doesn't exist (fingerprint never enabled)
+     * - Key was invalidated (new fingerprints enrolled)
+     */
+    public static boolean isBiometricKeyValid() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+
+            SecretKey key = (SecretKey) keyStore.getKey(BIOMETRIC_KEY_NAME, null);
+            if (key == null) {
+                Log.d(TAG, "Biometric key does not exist");
+                return false;
+            }
+
+            // Try to initialize cipher - this will throw if key is invalidated
+            Cipher cipher = Cipher.getInstance(
+                KeyProperties.KEY_ALGORITHM_AES + "/" +
+                KeyProperties.BLOCK_MODE_CBC + "/" +
+                KeyProperties.ENCRYPTION_PADDING_PKCS7);
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+
+            Log.d(TAG, "Biometric key is valid");
+            return true;
+        } catch (KeyPermanentlyInvalidatedException e) {
+            Log.w(TAG, "Biometric key invalidated - new fingerprints enrolled");
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking biometric key validity", e);
+            return false;
+        }
+    }
+
+    /**
+     * Checks if biometric key exists (regardless of validity).
+     * Used to determine if fingerprint was ever enabled.
+     */
+    public static boolean biometricKeyExists() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            return keyStore.containsAlias(BIOMETRIC_KEY_NAME);
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking biometric key existence", e);
+            return false;
+        }
+    }
+
+    /**
+     * Deletes the biometric key. Call when user wants to disable fingerprint.
+     */
+    public static void deleteBiometricKey() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            if (keyStore.containsAlias(BIOMETRIC_KEY_NAME)) {
+                keyStore.deleteEntry(BIOMETRIC_KEY_NAME);
+                Log.i(TAG, "Biometric key deleted");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error deleting biometric key", e);
+        }
     }
 }

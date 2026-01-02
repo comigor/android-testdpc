@@ -1,6 +1,5 @@
 package dev.borges.shadow;
 
-import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -133,37 +132,6 @@ public class LockTaskSwitchActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.w(TAG, "Could not set brightness", e);
         }
-    }
-
-    private void startBringToFrontLoop() {
-        Runnable bringToFront = new Runnable() {
-            @Override
-            public void run() {
-                if (!isFinishing()) {
-                    // Try multiple ways to stay on top
-                    try {
-                        // Re-enter lock task
-                        startLockTask();
-                    } catch (Exception e) {
-                        Log.w(TAG, "Could not re-enter lock task", e);
-                    }
-
-                    // Move task to front
-                    ActivityManager am = getSystemService(ActivityManager.class);
-                    am.moveTaskToFront(getTaskId(), ActivityManager.MOVE_TASK_WITH_HOME);
-
-                    // Re-apply immersive
-                    getWindow().getDecorView().setSystemUiVisibility(
-                        View.SYSTEM_UI_FLAG_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    );
-
-                    handler.postDelayed(this, 100);
-                }
-            }
-        };
-        handler.post(bringToFront);
     }
 
     @Override

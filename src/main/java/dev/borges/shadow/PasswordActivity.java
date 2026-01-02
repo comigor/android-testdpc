@@ -1,35 +1,27 @@
 package dev.borges.shadow;
 
 import android.Manifest;
-import android.annotation.TargetApi;
-import android.app.Activity;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
-import android.hardware.fingerprint.FingerprintManager;
 
+import androidx.annotation.NonNull;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
 
 import com.afwsamples.testdpc.R;
 
-import java.security.KeyStore;
-
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-
 import dev.borges.shadow.util.PasswordHelper;
 
-public class PasswordActivity extends Activity {
+public class PasswordActivity extends FragmentActivity {
     private static final String TAG = "PasswordActivity";
-
-    private static final String KEY_ALIAS = "my_app_key";
-    private static final String TRANSFORMATION = "AES/GCM/NoPadding";
 
     private EditText etCurrentPassword, etPassword, etConfirmPassword;
 
@@ -55,17 +47,25 @@ public class PasswordActivity extends Activity {
             // No password set, prompt user to set a new password
             etCurrentPassword.setVisibility(View.GONE); // Hide the old password field
             btnChangePassword.setVisibility(View.GONE); // Hide the change password button
+            btnUseFingerprint.setVisibility(View.GONE); // Hide fingerprint button
             btnSubmit.setText("Save Password");
             btnSubmit.setOnClickListener(v -> savePassword());
         } else {
             // Password is set, prompt user to verify password and change it
             etCurrentPassword.setVisibility(View.VISIBLE); // Show the old password field
             btnChangePassword.setVisibility(View.VISIBLE); // Show the change password button
-            btnUseFingerprint.setVisibility(View.VISIBLE);
-            btnUseFingerprint.setOnClickListener(v -> authenticateWithBiometrics());
             btnSubmit.setText("Login");
             btnSubmit.setOnClickListener(v -> verifyPassword());
             btnChangePassword.setOnClickListener(v -> changePassword());
+
+            // Only show fingerprint button if biometric key is valid (enabled in Settings and no new fingerprints enrolled)
+            if (PasswordHelper.isBiometricKeyValid()) {
+                btnUseFingerprint.setVisibility(View.VISIBLE);
+                btnUseFingerprint.setOnClickListener(v -> authenticateWithBiometrics());
+            } else {
+                // Either not enabled or key invalidated (new fingerprints enrolled)
+                btnUseFingerprint.setVisibility(View.GONE);
+            }
         }
     }
 
@@ -114,7 +114,6 @@ public class PasswordActivity extends Activity {
         if (PasswordHelper.checkPassword(this, currentPassword)) {
             String passwordHash = PasswordHelper.hashPassword(newPassword);
             PasswordHelper.storePasswordHash(this, passwordHash);
-
             Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show();
             setResult(RESULT_OK);
             finish();
@@ -123,66 +122,66 @@ public class PasswordActivity extends Activity {
         }
     }
 
-    private Cipher initCipher() {
-        try {
-            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-            keyStore.load(null);
-
-            SecretKey key = (SecretKey) keyStore.getKey(KEY_ALIAS, null);
-
-            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(Cipher.ENCRYPT_MODE, key);
-
-            return cipher;
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to initialize cipher", e);
-            e.printStackTrace();
-            return null;
-        }
-    }
-
     private void authenticateWithBiometrics() {
-        try {
-            FingerprintManager fingerprintManager = (FingerprintManager) getSystemService(FINGERPRINT_SERVICE);
+        BiometricManager biometricManager = BiometricManager.from(this);
+        int canAuthenticate = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG |
+            BiometricManager.Authenticators.BIOMETRIC_WEAK
+        );
 
-            if (!fingerprintManager.isHardwareDetected()) {
-                Toast.makeText(this, "Fingerprint hardware not detected", Toast.LENGTH_SHORT).show();
-                return;
+        if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
+            String message;
+            switch (canAuthenticate) {
+                case BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE:
+                    message = "No biometric hardware";
+                    break;
+                case BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE:
+                    message = "Biometric hardware unavailable";
+                    break;
+                case BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED:
+                    message = "No biometrics enrolled";
+                    break;
+                default:
+                    message = "Biometric authentication not available";
             }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-            if (!fingerprintManager.hasEnrolledFingerprints()) {
-                Toast.makeText(this, "No fingerprints enrolled", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Authentication")
+            .setSubtitle("Use fingerprint to access Shadow")
+            .setNegativeButtonText("Cancel")
+            .build();
 
-            Cipher cipher = initCipher();
-            if (cipher == null) {
-                Toast.makeText(this, "Failed to initialize cipher", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            FingerprintManager.CryptoObject cryptoObject = new FingerprintManager.CryptoObject(cipher);
-
-            fingerprintManager.authenticate(cryptoObject, null, 0, new FingerprintManager.AuthenticationCallback() {
+        BiometricPrompt biometricPrompt = new BiometricPrompt(this,
+            ContextCompat.getMainExecutor(this),
+            new BiometricPrompt.AuthenticationCallback() {
                 @Override
-                public void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result) {
-                    runOnUiThread(() -> {
-                        Toast.makeText(PasswordActivity.this, "Access Granted (Fingerprint)", Toast.LENGTH_SHORT).show();
-                        setResult(RESULT_OK);
-                        finish();
-                    });
+                public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                    super.onAuthenticationSucceeded(result);
+                    Toast.makeText(PasswordActivity.this, "Access Granted (Biometric)", Toast.LENGTH_SHORT).show();
+                    setResult(RESULT_OK);
+                    finish();
+                }
+
+                @Override
+                public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                    super.onAuthenticationError(errorCode, errString);
+                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                        errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                        Toast.makeText(PasswordActivity.this, "Error: " + errString, Toast.LENGTH_SHORT).show();
+                    }
                 }
 
                 @Override
                 public void onAuthenticationFailed() {
-                    runOnUiThread(() -> Toast.makeText(PasswordActivity.this, "Authentication failed", Toast.LENGTH_SHORT).show());
+                    super.onAuthenticationFailed();
+                    Toast.makeText(PasswordActivity.this, "Authentication failed", Toast.LENGTH_SHORT).show();
                 }
-            }, null);
-        } catch (Exception e) {
-            Log.e(TAG, "Fingerprint authentication failed", e);
-            Toast.makeText(this, "Fingerprint authentication failed", Toast.LENGTH_SHORT).show();
-            e.printStackTrace();
-        }
+            });
+
+        biometricPrompt.authenticate(promptInfo);
     }
 
     private static final int SMS_PERMISSION_REQUEST_CODE = 789234;

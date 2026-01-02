@@ -13,6 +13,7 @@ This is a modified version of Android's TestDPC (Device Policy Controller) with 
 
 ### Core Components
 - `src/main/java/dev/borges/shadow/SettingsActivity.java` - Main settings UI, decoy profile creation, return to owner functionality
+- `src/main/java/dev/borges/shadow/LockTaskSwitchActivity.java` - Handles decoy switch with screen dimming trick
 - `src/main/java/com/afwsamples/testdpc/DeviceAdminReceiver.java` - Handles device admin events, password failures trigger decoy switch
 - `src/main/java/com/afwsamples/testdpc/comp/DeviceOwnerService.java` - Cross-user service for switching back to owner
 
@@ -23,9 +24,10 @@ This is a modified version of Android's TestDPC (Device Policy Controller) with 
 
 ### Switching TO Decoy (on wrong password)
 1. `DeviceAdminReceiver.onPasswordFailed()` triggers `executeDecoySwitch()`
-2. `executeDecoySwitch()` directly calls `dpm.switchUser()` to decoy user
-3. `DISALLOW_USER_SWITCH` restriction is added to trap user in decoy
-4. Android shows system dialog "Switching to System..." (cannot be suppressed)
+2. `executeDecoySwitch()` launches `LockTaskSwitchActivity`
+3. Activity enters lock task mode, sets brightness to 0, then switches user
+4. `dpm.lockNow()` is called to turn screen off, hiding the "Switching to System..." dialog
+5. `DISALLOW_USER_SWITCH` restriction is added to trap user in decoy
 
 ### Switching BACK to Owner
 1. User clicks "Return to Owner" in decoy's SettingsActivity
@@ -63,8 +65,8 @@ APK output: `build2/outputs/apk/debug/Test DPC-debug.apk`
 
 ## Known Issues & Solutions
 
-### "Switching to System..." popup
-When switching to decoy, Android shows a system dialog with "Switching to System...". This CANNOT be suppressed or customized - it's hardcoded in Android's ActivityManagerService. The only controllable part is the user name (set to "System" to appear legitimate).
+### "Switching to System..." popup (SOLVED)
+Android shows a system dialog "Switching to System..." that cannot be suppressed. Solution: set screen brightness to 0 and call `lockNow()` immediately after initiating the switch. The screen goes dark before the dialog appears, making it invisible to the user.
 
 ### Manifest Typos (FIXED)
 - Line 393 had `android.permission` instead of `android:permission` for DeviceAdminService
@@ -83,8 +85,9 @@ git show HEAD:src/main/java/com/afwsamples/testdpc/ShellCommand.java > /tmp/sc.j
 Uses a static variable `lastSwitchToOwnerTime` in `DeviceAdminReceiver` instead of SharedPreferences. When returning to owner, `markSwitchingToOwner()` is called, and `executeDecoySwitch()` checks this timestamp to avoid immediately switching back to decoy.
 
 ## Decoy User Name
-The decoy user is named "System" so the system switch dialog shows "Switching to System..." which appears more legitimate than "Switching to Guest...". If you have an existing decoy with a different name, delete and recreate it.
+The decoy user is named "System". The system switch dialog "Switching to System..." is hidden by the brightness trick, but the name is kept in case the screen darkening fails. If you have an existing decoy with a different name, delete and recreate it.
 
 ## Permissions Required
 - `INTERACT_ACROSS_USERS` - For cross-user operations (signature-level, only works for device owner)
 - `BIND_DEVICE_ADMIN` - Required on services for device admin binding
+- `WRITE_SETTINGS` - For changing screen brightness during decoy switch

@@ -37,6 +37,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
+import androidx.biometric.BiometricManager;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -48,6 +49,7 @@ import com.afwsamples.testdpc.comp.IDeviceOwnerService;
 
 import dev.borges.shadow.util.DevicePasswordHelper;
 import dev.borges.shadow.util.DownloadHelper;
+import dev.borges.shadow.util.PasswordHelper;
 import dev.borges.shadow.util.SettingsHelper;
 
 import java.util.Arrays;
@@ -156,6 +158,7 @@ public class SettingsActivity extends AppCompatActivity {
             addSmsPermissionSetting();
             addTitle("Protection Setup");
             addDevicePasswordTokenSetting();
+            addFingerprintLoginSetting();
             addBackupServicesSetting();
             addLocationEnabledSetting();
             addOrganizationNameSetting();
@@ -179,24 +182,8 @@ public class SettingsActivity extends AppCompatActivity {
             addAppUpdateUrl();
             updateAppSetting();
             updateAppSetting2();
-            addOverlayPermissionSetting();
             addTestDPCSetting();
         }
-    }
-
-    private void addOverlayPermissionSetting() {
-        boolean canDraw = Settings.canDrawOverlays(this);
-        View switchCompat = createSwitchItem("Overlay Permission", canDraw, !canDraw, (buttonView, isChecked) -> {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-        });
-        View row = createRow(switchCompat, () -> {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-        });
-        settingsContainer.addView(row);
     }
 
     private void updateDecoyProfileSettings() {
@@ -248,6 +235,38 @@ public class SettingsActivity extends AppCompatActivity {
         });
         View row = createRow(switchCompat, () -> startActivity(new Intent(this, PasswordActivity.class)));
         settingsContainer.addView(row);
+    }
+
+    private void addFingerprintLoginSetting() {
+        // Check if biometrics are available on this device
+        BiometricManager biometricManager = BiometricManager.from(this);
+        int canAuthenticate = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG |
+            BiometricManager.Authenticators.BIOMETRIC_WEAK
+        );
+
+        if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
+            // Biometrics not available, don't show the setting
+            return;
+        }
+
+        boolean isEnabled = PasswordHelper.isBiometricKeyValid();
+        boolean keyExistsButInvalid = PasswordHelper.biometricKeyExists() && !isEnabled;
+
+        String label = keyExistsButInvalid ? "Fingerprint login (new fingerprints detected)" : "Fingerprint login";
+
+        View switchCompat = createSwitchItem(label, isEnabled, true, (buttonView, newChecked) -> {
+            if (newChecked) {
+                // Enable fingerprint - generate the key
+                PasswordHelper.generateBiometricKey();
+                Toast.makeText(this, "Fingerprint login enabled", Toast.LENGTH_SHORT).show();
+            } else {
+                // Disable fingerprint - delete the key
+                PasswordHelper.deleteBiometricKey();
+                Toast.makeText(this, "Fingerprint login disabled", Toast.LENGTH_SHORT).show();
+            }
+        });
+        settingsContainer.addView(createRow(switchCompat, null));
     }
 
     private void addBackupServicesSetting() {

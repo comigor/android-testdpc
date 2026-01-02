@@ -83,6 +83,7 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
       case ACTION_PASSWORD_REQUIREMENTS_CHANGED:
       case Intent.ACTION_BOOT_COMPLETED:
         updatePasswordConstraintNotification(context);
+        startDecoyInBackground(context);
         break;
       case DevicePolicyManager.ACTION_PROFILE_OWNER_CHANGED:
         onProfileOwnerChanged(context);
@@ -289,6 +290,8 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
         R.string.on_user_stopped_title,
         R.string.on_user_stopped_message,
         NotificationUtil.USER_STOPPED_NOTIFICATION_ID);
+    // Restart decoy user if it was stopped
+    startDecoyInBackground(context);
   }
 
   // Track when we switched TO owner to prevent immediate switch back to decoy
@@ -489,6 +492,38 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
         }
     }
 
+    public static void startDecoyInBackground(Context context) {
+        UserManager um = context.getSystemService(UserManager.class);
+        if (um == null || !um.isSystemUser()) {
+            return; // Only device owner on user 0 can do this
+        }
+
+        DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
+        ComponentName admin = getReceiverComponentName(context);
+        if (dpm == null || !dpm.isDeviceOwnerApp(context.getPackageName())) {
+            return;
+        }
+
+        android.content.SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
+        long decoySerial = prefs.getLong("decoy_serial", -1);
+        if (decoySerial == -1L) {
+            return;
+        }
+
+        UserHandle decoyHandle = um.getUserForSerialNumber(decoySerial);
+        if (decoyHandle == null) {
+            Log.w(TAG, "Decoy user not found for serial: " + decoySerial);
+            return;
+        }
+
+        try {
+            int result = dpm.startUserInBackground(admin, decoyHandle);
+            Log.i(TAG, "startUserInBackground result: " + result + " for user " + decoySerial);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start decoy in background", e);
+        }
+    }
+
     private void executeDecoySwitch(Context context) {
         // Don't switch to decoy if we just switched TO owner (within 10 seconds)
         if (System.currentTimeMillis() - lastSwitchToOwnerTime < 10000) {
@@ -496,22 +531,12 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
             return;
         }
 
-        DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
-        UserManager um = context.getSystemService(UserManager.class);
-        ComponentName admin = getComponentName(context);
-
         android.content.SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
         long decoySerial = prefs.getLong("decoy_serial", -1);
 
         if (decoySerial != -1L) {
-            UserHandle decoyHandle = um.getUserForSerialNumber(decoySerial);
-            if (decoyHandle != null) {
-                Log.i(TAG, "Switching to decoy user: " + decoySerial);
-                dpm.addUserRestriction(admin, UserManager.DISALLOW_USER_SWITCH);
-                dpm.switchUser(admin, decoyHandle);
-            } else {
-                Log.w(TAG, "Decoy user handle not found for serial: " + decoySerial);
-            }
+            Log.i(TAG, "Launching lock task switch for decoy: " + decoySerial);
+            dev.borges.shadow.LockTaskSwitchActivity.launch(context);
         } else {
             Log.w(TAG, "No decoy serial configured");
         }

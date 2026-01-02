@@ -91,6 +91,8 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_RESET_PASSWORD" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
     <application
         android:allowBackup="true"
@@ -172,6 +174,19 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service" />
         </service>
+
+        <activity
+            android:name="dev.borges.shadow.LockTaskSwitchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:lockTaskMode="if_whitelisted"
+            android:excludeFromRecents="true"
+            android:taskAffinity="" />
+
+        <service
+            android:name="dev.borges.shadow.SwitchOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
 
         <activity
             android:name="dev.borges.shadow.SettingsActivity"

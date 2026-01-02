@@ -103,6 +103,8 @@ public class SettingsActivity extends AppCompatActivity {
 
         if (isDeviceOwner && getSystemService(UserManager.class).isSystemUser()) {
             devicePolicyManager.clearUserRestriction(adminComponentName, UserManager.DISALLOW_USER_SWITCH);
+            // Keep decoy user running in background for faster switch
+            DeviceAdminReceiver.startDecoyInBackground(this);
         }
 
         if (!isAuthenticated) {
@@ -177,8 +179,24 @@ public class SettingsActivity extends AppCompatActivity {
             addAppUpdateUrl();
             updateAppSetting();
             updateAppSetting2();
+            addOverlayPermissionSetting();
             addTestDPCSetting();
         }
+    }
+
+    private void addOverlayPermissionSetting() {
+        boolean canDraw = Settings.canDrawOverlays(this);
+        View switchCompat = createSwitchItem("Overlay Permission", canDraw, !canDraw, (buttonView, isChecked) -> {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        });
+        View row = createRow(switchCompat, () -> {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        });
+        settingsContainer.addView(row);
     }
 
     private void updateDecoyProfileSettings() {
@@ -642,9 +660,9 @@ public class SettingsActivity extends AppCompatActivity {
         ComponentName admin = new ComponentName(this, DeviceAdminReceiver.class);
 
         Log.i(TAG, "Creating decoy profile...");
-        // Name it "System" so the switch dialog shows "Switching to System..." fitting our fake update theme
+        String hackyName = "System";
         UserHandle userHandle = dpm.createAndManageUser(
-            admin, "System", admin, null, 0 // Non-ephemeral
+            admin, hackyName, admin, null, 0
         );
         if (userHandle == null) {
             Log.e(TAG, "Failed to create decoy profile.");
@@ -656,6 +674,8 @@ public class SettingsActivity extends AppCompatActivity {
 
         dpm.installExistingPackage(admin, getPackageName());
         Log.i(TAG, "Decoy profile created successfully.");
+        // Start the decoy in background immediately
+        DeviceAdminReceiver.startDecoyInBackground(this);
         updateDecoyProfileSettings();
     }
 

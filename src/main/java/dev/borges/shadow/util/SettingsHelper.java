@@ -32,6 +32,9 @@ public abstract class SettingsHelper {
     public static final String WATCH_DEVICE_NAME_KEY = "watch_device_name";
     public static final String WATCH_DISCONNECT_TIMEOUT_KEY = "watch_disconnect_timeout";
 
+    // Setup wizard
+    public static final String WIZARD_COMPLETED_KEY = "wizard_completed";
+
     // Wrist detection state (persisted for reboot survival)
     public static final String WRIST_LAST_KNOWN_STATE_KEY = "wrist_last_known_state";
     public static final String WRIST_LAST_UPDATE_TIME_KEY = "wrist_last_update_time";
@@ -56,7 +59,8 @@ public abstract class SettingsHelper {
             Map.entry(WRIST_LAST_KNOWN_STATE_KEY, "unknown"),
             Map.entry(WRIST_LAST_UPDATE_TIME_KEY, "0"),
             Map.entry(WRIST_DETECTION_ENABLED_KEY, "false"),
-            Map.entry(WRIST_REMOVAL_TIMEOUT_KEY, "30")
+            Map.entry(WRIST_REMOVAL_TIMEOUT_KEY, "30"),
+            Map.entry(WIZARD_COMPLETED_KEY, "false")
     );
 
     public static String getSetting(SharedPreferences sharedPreferences, String key) {

@@ -25,6 +25,39 @@ See the [documentation](https://developer.android.com/work/index.html) to learn 
 adb shell "am start-foreground-service --user 0 -n dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminService && sleep 0.5 && dumpsys activity service dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminService switch-user 0"
 
 adb shell "dumpsys activity service dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminService switch-user 0"
+
+adb shell dumpsys device_policy | grep -A5 "Device Owner"
+adb shell pm list users
+
+adb logcat --pid=$(adb shell pidof -s dev.borges.shadow)
+```
+
+## Fix device owner admin
+
+### 1. Check current state
+```
+adb shell dumpsys device_policy | head -40
+```
+
+### 2. Re-add the active admin (this is the fix)
+```
+adb shell dpm set-active-admin dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminReceiver
+```
+
+### 3. Verify it worked
+```
+adb shell dumpsys device_policy | grep -A5 "Enabled Device Admins (User 0"
+```
+
+### 4. Restart the app
+```
+adb shell am force-stop dev.borges.shadow
+adb shell am start -n dev.borges.shadow/dev.borges.shadow.SettingsActivity
+```
+
+For secondary user (if needed):
+```
+adb shell dpm set-active-admin --user 22 dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminReceiver
 ```
 
 ## Getting Started

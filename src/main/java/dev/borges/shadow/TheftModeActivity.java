@@ -46,6 +46,7 @@ public class TheftModeActivity extends Activity {
     public static final String STOP_THEFT_MODE = "dev.borges.shadow.STOP_THEFT_MODE";
 
     private boolean backdoorTriggered = false;
+    private boolean passwordInputVisible = false;
 
     public static void startTheftMode(Context context) {
         try {
@@ -118,6 +119,9 @@ public class TheftModeActivity extends Activity {
         Log.i(TAG, "Resetting user restrictions");
         setDefaultKioskPolicies(false);
 
+        Log.i(TAG, "Unhiding all hidden apps");
+        HiddenAppsActivity.unhideAllApps(this);
+
         Log.i(TAG, "Clearing home/launcher activity");
         final ComponentName customLauncher = new ComponentName(getPackageName(), TheftModeActivity.class.getName());
         mPackageManager.setComponentEnabledSetting(
@@ -148,13 +152,23 @@ public class TheftModeActivity extends Activity {
         SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
 
         Log.i(TAG, "Starting kiosk mode");
-        mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{getPackageName()});
-        if (mDevicePolicyManager.isLockTaskPermitted(getPackageName())) {
-            startLockTask();
+        try {
+            mDevicePolicyManager.setLockTaskPackages(mAdminComponentName, new String[]{getPackageName()});
+            if (mDevicePolicyManager.isLockTaskPermitted(getPackageName())) {
+                startLockTask();
+            }
+        } catch (SecurityException e) {
+            // Expected on secondary user where we're not profile owner
+            Log.w(TAG, "Could not start lock task (not admin on this user): " + e.getMessage());
         }
 
         Log.i(TAG, "Setting custom user restrictions");
-        setDefaultKioskPolicies(true);
+        try {
+            setDefaultKioskPolicies(true);
+        } catch (SecurityException e) {
+            // Expected on secondary user where we're not profile owner
+            Log.w(TAG, "Could not set kiosk policies (not admin on this user): " + e.getMessage());
+        }
 
         // set beautiful UI
         setContentView(R.layout.activity_theft_mode);
@@ -169,6 +183,27 @@ public class TheftModeActivity extends Activity {
         String sequence = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.DEACTIVATION_SEQUENCE_KEY);
         correctGestureSequence = Arrays.stream(sequence.split(",")).map(String::trim).filter(POSSIBLE_GESTURES::contains).collect(Collectors.toList());
         setupGestures();
+
+        // Check if test mode is active - show visible exit button
+        SharedPreferences shadowPrefs = getSharedPreferences("shadow_prefs", MODE_PRIVATE);
+        if (shadowPrefs.getBoolean("test_mode_active", false)) {
+            android.widget.Button exitButton = new android.widget.Button(this);
+            exitButton.setText("EXIT TEST MODE");
+            exitButton.setBackgroundColor(0xFF4CAF50);
+            exitButton.setTextColor(0xFFFFFFFF);
+            exitButton.setOnClickListener(v -> {
+                shadowPrefs.edit().remove("test_mode_active").apply();
+                onBackdoorClicked();
+            });
+
+            android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+            );
+            params.gravity = android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL;
+            params.topMargin = 100;
+            ((android.widget.FrameLayout) findViewById(android.R.id.content)).addView(exitButton, params);
+        }
 
         Log.i(TAG, "Changing owntracks mode to 'move'");
         try {
@@ -222,6 +257,8 @@ public class TheftModeActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        // Don't reapply immersive mode when password input is visible (keyboard needs to show)
+        if (!passwordInputVisible) {
             // Reapply immersive mode
             getWindow().getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -230,6 +267,7 @@ public class TheftModeActivity extends Activity {
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                             | View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        }
     }
 
     @Override
@@ -243,10 +281,15 @@ public class TheftModeActivity extends Activity {
     }
 
     private void setUserRestriction(String restriction, boolean disallow) {
-        if (disallow) {
-            mDevicePolicyManager.addUserRestriction(mAdminComponentName, restriction);
-        } else {
-            mDevicePolicyManager.clearUserRestriction(mAdminComponentName, restriction);
+        try {
+            if (disallow) {
+                mDevicePolicyManager.addUserRestriction(mAdminComponentName, restriction);
+            } else {
+                mDevicePolicyManager.clearUserRestriction(mAdminComponentName, restriction);
+            }
+        } catch (SecurityException e) {
+            // Expected on secondary user where we're not profile owner
+            Log.w(TAG, "Could not set restriction " + restriction + ": " + e.getMessage());
         }
     }
 
@@ -341,20 +384,55 @@ public class TheftModeActivity extends Activity {
             List<String> lastGestures = mGestureSequence.subList(mGestureSequence.size() - correctSequenceSize, mGestureSequence.size());
 
             if (lastGestures.equals(correctGestureSequence)) {
-                mPasswordEditText.setVisibility(View.VISIBLE);
-                mPasswordEditText.requestFocus();
-                // Allow keyboard to resize the screen
-                getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE |
-                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-                // Explicitly show keyboard
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    mPasswordEditText.postDelayed(() -> {
-                        imm.showSoftInput(mPasswordEditText, InputMethodManager.SHOW_FORCED);
-                    }, 100);
-                }
+                showPasswordInput();
                 mGestureSequence.clear();
             }
+        }
+    }
+
+    private void showPasswordInput() {
+        Log.i(TAG, "Showing password input");
+        passwordInputVisible = true;
+
+        // Clear DISALLOW_CREATE_WINDOWS to allow keyboard to appear
+        try {
+            mDevicePolicyManager.clearUserRestriction(mAdminComponentName,
+                android.os.UserManager.DISALLOW_CREATE_WINDOWS);
+            Log.i(TAG, "Cleared DISALLOW_CREATE_WINDOWS restriction");
+        } catch (SecurityException e) {
+            // Expected on secondary user where we're not profile owner
+            Log.w(TAG, "Could not clear DISALLOW_CREATE_WINDOWS (not admin): " + e.getMessage());
+        }
+
+        // Exit immersive mode to allow keyboard
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+
+        // Make password field visible and focusable
+        mPasswordEditText.setVisibility(View.VISIBLE);
+        mPasswordEditText.setFocusable(true);
+        mPasswordEditText.setFocusableInTouchMode(true);
+        mPasswordEditText.requestFocus();
+
+        // Allow keyboard to resize the screen
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE |
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+        // Show keyboard with multiple attempts
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            // First attempt immediately
+            imm.showSoftInput(mPasswordEditText, InputMethodManager.SHOW_FORCED);
+
+            // Second attempt after short delay
+            mPasswordEditText.postDelayed(() -> {
+                mPasswordEditText.requestFocus();
+                imm.showSoftInput(mPasswordEditText, InputMethodManager.SHOW_FORCED);
+            }, 100);
+
+            // Third attempt with toggle
+            mPasswordEditText.postDelayed(() -> {
+                imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+            }, 300);
         }
     }
 }

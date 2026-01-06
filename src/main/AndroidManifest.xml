@@ -242,10 +242,44 @@
             android:theme="@style/SettingsTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- Launcher alias for stealth mode - can be disabled to hide from launcher -->
+        <activity-alias
+            android:name="dev.borges.shadow.SettingsActivityAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Shadow"
+            android:targetActivity="dev.borges.shadow.SettingsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Secret dialer code receiver for stealth mode access -->
+        <receiver
+            android:name="dev.borges.shadow.SecretCodeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SECRET_CODE" />
+                <data android:scheme="android_secret_code" android:host="742369" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name="dev.borges.shadow.TestModeActivity"
+            android:exported="false"
+            android:label="Test Mode"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.SetupWizardActivity"
+            android:exported="false"
+            android:label="Shadow Setup"
+            android:theme="@style/SettingsTheme" />
 
         <!-- <activity
                 android:name=".SetupManagementActivity"
@@ -410,7 +444,7 @@
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="dev.borges.shadow.fileprovider"
+            android:authorities="dev.borges.shadow2.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
@@ -420,7 +454,7 @@
 
         <provider
             android:name="com.afwsamples.testdpc.UserIconContentProvider"
-            android:authorities="dev.borges.shadow.usericoncontentprovider"
+            android:authorities="dev.borges.shadow2.usericoncontentprovider"
             android:exported="true"
             android:grantUriPermissions="true" />
 

@@ -84,6 +84,20 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Check if setup wizard should be shown (only on main user)
+        SharedPreferences tempPrefs = SettingsHelper.getEncryptedSharedPreferences(this);
+        UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);
+        boolean isMainUser = um.isSystemUser();
+        String wizardCompleted = SettingsHelper.getSetting(tempPrefs, SettingsHelper.WIZARD_COMPLETED_KEY);
+
+        if (isMainUser && !"true".equals(wizardCompleted)) {
+            Intent wizardIntent = new Intent(this, SetupWizardActivity.class);
+            startActivity(wizardIntent);
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_settings);
 
         settingsContainer = findViewById(R.id.settings_container);
@@ -163,6 +177,9 @@ public class SettingsActivity extends AppCompatActivity {
         // Debug text for theft mode timer
         addTheftModeDebugText();
 
+        // Status dashboard at the top
+        addStatusDashboard();
+
         decoySettingsContainer = new LinearLayout(this);
         decoySettingsContainer.setOrientation(LinearLayout.VERTICAL);
         decoySettingsContainer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -210,11 +227,70 @@ public class SettingsActivity extends AppCompatActivity {
             addFRPAccountsSetting();
             addFRPToggleSetting();
             addTitle("Extras / dev");
+            addTestModeSetting();
+            addSetupWizardSetting();
+            addStealthModeSetting();
             addAppUpdateUrl();
             updateAppSetting();
             updateAppSetting2();
             addTestDPCSetting();
         }
+    }
+
+    private void addTestModeSetting() {
+        View textView = createClickableTextItem("Test Mode", () ->
+            startActivity(new Intent(this, TestModeActivity.class)));
+        settingsContainer.addView(textView);
+    }
+
+    private void addSetupWizardSetting() {
+        View textView = createClickableTextItem("Run Setup Wizard", () -> {
+            // Reset wizard completed flag and start wizard
+            SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WIZARD_COMPLETED_KEY, "false");
+            startActivity(new Intent(this, SetupWizardActivity.class));
+            finish();
+        });
+        settingsContainer.addView(textView);
+    }
+
+    private void addStealthModeSetting() {
+        boolean isEnabled = StealthModeManager.isStealthModeEnabled(this);
+        View switchCompat = createSwitchItem("Stealth Mode", isEnabled, true, (buttonView, newChecked) -> {
+            if (newChecked) {
+                // Show warning before enabling
+                new AlertDialog.Builder(this)
+                    .setTitle("Enable Stealth Mode")
+                    .setMessage("This will hide the app from the launcher.\n\n" +
+                        "To access the app, dial:\n*#*#742369#*#*\n\n" +
+                        "Make sure you remember this code!")
+                    .setPositiveButton("Enable", (d, w) -> {
+                        StealthModeManager.enableStealthMode(this);
+                        Toast.makeText(this, "Stealth mode enabled. Dial *#*#742369#*#* to open.", Toast.LENGTH_LONG).show();
+                    })
+                    .setNegativeButton("Cancel", (d, w) -> {
+                        // Reset the switch
+                        ((SwitchCompat) buttonView).setChecked(false);
+                    })
+                    .show();
+            } else {
+                StealthModeManager.disableStealthMode(this);
+                Toast.makeText(this, "Stealth mode disabled", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Add description below the switch
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.addView(createRow(switchCompat, null));
+
+        TextView desc = new TextView(this);
+        desc.setText("Hide app from launcher. Access via dialer: *#*#742369#*#*");
+        desc.setTextSize(11);
+        desc.setTextColor(0xFF888888);
+        desc.setPadding(dpToPx(16), 0, dpToPx(16), dpToPx(8));
+        container.addView(desc);
+
+        settingsContainer.addView(container);
     }
 
     private LinearLayout theftModeBanner;
@@ -285,6 +361,98 @@ public class SettingsActivity extends AppCompatActivity {
         if (theftModeUpdateRunnable != null) {
             theftModeHandler.removeCallbacks(theftModeUpdateRunnable);
         }
+    }
+
+    private void addStatusDashboard() {
+        // Dashboard container with dark background
+        LinearLayout dashboard = new LinearLayout(this);
+        dashboard.setOrientation(LinearLayout.VERTICAL);
+        dashboard.setBackgroundColor(0xFF1A1A1A);
+        dashboard.setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12));
+        LinearLayout.LayoutParams dashParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dashParams.setMargins(0, 0, 0, dpToPx(8));
+        dashboard.setLayoutParams(dashParams);
+
+        // Title
+        TextView title = new TextView(this);
+        title.setText("PROTECTION STATUS");
+        title.setTextColor(0xFF888888);
+        title.setTextSize(12);
+        title.setPadding(0, 0, 0, dpToPx(8));
+        dashboard.addView(title);
+
+        // Get all statuses
+        ProtectionStatusChecker checker = new ProtectionStatusChecker(this);
+        List<ProtectionStatusChecker.Status> statuses = checker.checkAllStatuses();
+
+        // Create status grid (2 columns)
+        LinearLayout row = null;
+        for (int i = 0; i < statuses.size(); i++) {
+            if (i % 2 == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                dashboard.addView(row);
+            }
+
+            ProtectionStatusChecker.Status status = statuses.get(i);
+            View statusView = createStatusItem(status);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+            params.setMargins(0, dpToPx(4), dpToPx(8), dpToPx(4));
+            statusView.setLayoutParams(params);
+            row.addView(statusView);
+        }
+
+        // Add odd spacer if needed
+        if (statuses.size() % 2 != 0 && row != null) {
+            View spacer = new View(this);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, 1, 1);
+            spacer.setLayoutParams(params);
+            row.addView(spacer);
+        }
+
+        settingsContainer.addView(dashboard);
+    }
+
+    private View createStatusItem(ProtectionStatusChecker.Status status) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+
+        // Status indicator dot
+        TextView dot = new TextView(this);
+        int color;
+        switch (status.state) {
+            case OK: color = 0xFF4CAF50; break;       // Green
+            case WARNING: color = 0xFFFF9800; break;  // Orange
+            case ERROR: color = 0xFFF44336; break;    // Red
+            default: color = 0xFF666666; break;       // Gray
+        }
+        dot.setText("\u25CF "); // Filled circle
+        dot.setTextColor(color);
+        dot.setTextSize(10);
+        item.addView(dot);
+
+        // Label and status
+        LinearLayout textContainer = new LinearLayout(this);
+        textContainer.setOrientation(LinearLayout.VERTICAL);
+
+        TextView label = new TextView(this);
+        label.setText(status.label);
+        label.setTextColor(0xFFCCCCCC);
+        label.setTextSize(12);
+        textContainer.addView(label);
+
+        TextView statusText = new TextView(this);
+        statusText.setText(status.statusText);
+        statusText.setTextColor(color);
+        statusText.setTextSize(10);
+        textContainer.addView(statusText);
+
+        item.addView(textContainer);
+        return item;
     }
 
     private void updateDecoyProfileSettings() {

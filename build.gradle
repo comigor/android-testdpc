@@ -76,7 +76,7 @@ android {
     compileSdkVersion 36
 
     defaultConfig {
-        applicationId "dev.borges.shadow"
+        applicationId "dev.borges.shadow2"
         minSdk 26
         targetSdk 36
         versionCode versionMajor * 1000 + versionMinor * 100 + versionBuild

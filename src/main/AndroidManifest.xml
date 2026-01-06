@@ -281,6 +281,12 @@
             android:label="Shadow Setup"
             android:theme="@style/SettingsTheme" />
 
+        <activity
+            android:name="dev.borges.shadow.AutoKillAppsActivity"
+            android:exported="false"
+            android:label="Auto-Kill Apps"
+            android:theme="@style/SettingsTheme" />
+
         <!-- <activity
                 android:name=".SetupManagementActivity"
                 android:theme="@style/SudThemeGlifV3.Light"
@@ -444,7 +450,7 @@
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="dev.borges.shadow2.fileprovider"
+            android:authorities="dev.borges.shadow.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
@@ -454,7 +460,7 @@
 
         <provider
             android:name="com.afwsamples.testdpc.UserIconContentProvider"
-            android:authorities="dev.borges.shadow2.usericoncontentprovider"
+            android:authorities="dev.borges.shadow.usericoncontentprovider"
             android:exported="true"
             android:grantUriPermissions="true" />
 

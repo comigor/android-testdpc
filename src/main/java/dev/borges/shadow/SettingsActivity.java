@@ -77,6 +77,7 @@ public class SettingsActivity extends AppCompatActivity {
     private ComponentName adminComponentName;
     private boolean isDeviceOwner = false;
     private boolean isAuthenticated = false;
+    public static final String EXTRA_ALREADY_AUTHENTICATED = "already_authenticated";
     private DownloadHelper downloadHelper;
     private android.os.Handler theftModeHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable theftModeUpdateRunnable;
@@ -99,6 +100,11 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         setContentView(R.layout.activity_settings);
+
+        // Check if already authenticated (e.g., from T9 code launch)
+        if (getIntent().getBooleanExtra(EXTRA_ALREADY_AUTHENTICATED, false)) {
+            isAuthenticated = true;
+        }
 
         settingsContainer = findViewById(R.id.settings_container);
         sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this); // For settings
@@ -211,6 +217,10 @@ public class SettingsActivity extends AppCompatActivity {
             addActivationDelaySetting();
             addDeactivationSequenceSetting();
             addHiddenAppsSetting();
+            addTitle("Auto-Kill Apps");
+            addAutoKillEnabledSetting();
+            addAutoKillDelaySetting();
+            addAutoKillAppsSetting();
             addTitle("Watch Disconnect Protection");
             addWatchDisconnectEnabledSetting();
             addWatchDeviceSelectSetting();
@@ -700,6 +710,25 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void addHiddenAppsSetting() {
         View textView = createClickableTextItem("Apps to hide on theft mode", () -> startActivity(new Intent(this, HiddenAppsActivity.class)));
+        settingsContainer.addView(textView);
+    }
+
+    private void addAutoKillEnabledSetting() {
+        boolean isEnabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.AUTO_KILL_ENABLED_KEY));
+        View switchCompat = createSwitchItem("Enable auto-kill when apps go to background", isEnabled, true, (buttonView, isChecked) ->
+            SettingsHelper.setSetting(sharedPreferences, SettingsHelper.AUTO_KILL_ENABLED_KEY, isChecked ? "true" : "false"));
+        settingsContainer.addView(createRow(switchCompat, null));
+    }
+
+    private void addAutoKillDelaySetting() {
+        String value = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.AUTO_KILL_DELAY_KEY);
+        View editText = createNumberEditItem("Kill delay (seconds)", value, value,
+            v -> SettingsHelper.setSetting(sharedPreferences, SettingsHelper.AUTO_KILL_DELAY_KEY, v));
+        settingsContainer.addView(editText);
+    }
+
+    private void addAutoKillAppsSetting() {
+        View textView = createClickableTextItem("Select apps to auto-kill", () -> startActivity(new Intent(this, AutoKillAppsActivity.class)));
         settingsContainer.addView(textView);
     }
 

@@ -41,6 +41,10 @@ public abstract class SettingsHelper {
     public static final String WRIST_DETECTION_ENABLED_KEY = "wrist_detection_enabled";
     public static final String WRIST_REMOVAL_TIMEOUT_KEY = "wrist_removal_timeout";
 
+    // Auto-kill apps settings
+    public static final String AUTO_KILL_ENABLED_KEY = "auto_kill_enabled";
+    public static final String AUTO_KILL_DELAY_KEY = "auto_kill_delay";
+
     public static final Map<String, String> DEFAULTS = Map.ofEntries(
             Map.entry(ORGANIZATION_NAME_KEY, ""),
             Map.entry(DETECT_KEYWORDS_KEY, "power off,restart,emergency"),
@@ -60,7 +64,9 @@ public abstract class SettingsHelper {
             Map.entry(WRIST_LAST_UPDATE_TIME_KEY, "0"),
             Map.entry(WRIST_DETECTION_ENABLED_KEY, "false"),
             Map.entry(WRIST_REMOVAL_TIMEOUT_KEY, "30"),
-            Map.entry(WIZARD_COMPLETED_KEY, "false")
+            Map.entry(WIZARD_COMPLETED_KEY, "false"),
+            Map.entry(AUTO_KILL_ENABLED_KEY, "false"),
+            Map.entry(AUTO_KILL_DELAY_KEY, "60")
     );
 
     public static String getSetting(SharedPreferences sharedPreferences, String key) {

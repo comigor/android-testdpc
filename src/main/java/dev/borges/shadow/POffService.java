@@ -5,11 +5,14 @@ package dev.borges.shadow;
 import android.accessibilityservice.AccessibilityService;
 import android.annotation.TargetApi;
 import android.app.KeyguardManager;
+import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
@@ -19,7 +22,11 @@ import android.widget.Toast;
 import com.afwsamples.testdpc.DeviceAdminReceiver;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import dev.borges.shadow.util.SettingsHelper;
 
@@ -31,10 +38,27 @@ public class POffService extends AccessibilityService {
 
     private SharedPreferences encryptedSharedPreferences;
 
+    // Auto-kill fields
+    private String lastForegroundPackage = null;
+    private boolean autoKillEnabled = false;
+    private Set<String> appsToAutoKill = new HashSet<>();
+    private int autoKillDelaySeconds = 60;
+    private Handler autoKillHandler = new Handler(Looper.getMainLooper());
+    private Map<String, Runnable> pendingKills = new HashMap<>();
+
     @Override
     public void onCreate() {
         super.onCreate();
         encryptedSharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
+        reloadAutoKillSettings();
+    }
+
+    public void reloadAutoKillSettings() {
+        autoKillEnabled = AutoKillAppsActivity.isAutoKillEnabled(this);
+        appsToAutoKill = AutoKillAppsActivity.getAppsToAutoKill(this);
+        autoKillDelaySeconds = AutoKillAppsActivity.getAutoKillDelay(this);
+        Log.d(TAG, "Auto-kill settings reloaded: enabled=" + autoKillEnabled +
+            ", apps=" + appsToAutoKill.size() + ", delay=" + autoKillDelaySeconds + "s");
     }
 
     @Override
@@ -45,6 +69,9 @@ public class POffService extends AccessibilityService {
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
 //            Log.d(TAG, "Window state changed: " + event.getPackageName() + ", " + event.getClassName());
             String packageName = event.getPackageName() != null ? event.getPackageName().toString() : null;
+
+            // Auto-kill: Track foreground app changes
+            handleAutoKill(packageName);
 
             // bugfix: if on TheftModeActivity, press back twice
             if (getPackageName().equals(packageName) && event.getClassName() != null && event.getClassName().equals(TheftModeActivity.class.getName())) {
@@ -141,5 +168,77 @@ public class POffService extends AccessibilityService {
 
     @Override
     public void onInterrupt() {
+    }
+
+    // ============ Auto-Kill Methods ============
+
+    private void handleAutoKill(String currentPackage) {
+        // Reload settings periodically (every event for simplicity)
+        reloadAutoKillSettings();
+
+        if (!autoKillEnabled || currentPackage == null) {
+            return;
+        }
+
+        if (!currentPackage.equals(lastForegroundPackage)) {
+            // Cancel pending kill if user returned to the app
+            if (pendingKills.containsKey(currentPackage)) {
+                autoKillHandler.removeCallbacks(pendingKills.get(currentPackage));
+                pendingKills.remove(currentPackage);
+            }
+
+            // Schedule clean purge for previous app if in auto-kill list
+            if (lastForegroundPackage != null && appsToAutoKill.contains(lastForegroundPackage)) {
+                scheduleCleanPurge(lastForegroundPackage);
+            }
+
+            lastForegroundPackage = currentPackage;
+        }
+    }
+
+    private void scheduleCleanPurge(String packageName) {
+        // Cancel any existing pending purge for this package
+        if (pendingKills.containsKey(packageName)) {
+            autoKillHandler.removeCallbacks(pendingKills.get(packageName));
+        }
+
+        Runnable purgeRunnable = () -> {
+            cleanPurgeApp(packageName);
+            pendingKills.remove(packageName);
+        };
+
+        pendingKills.put(packageName, purgeRunnable);
+
+        if (autoKillDelaySeconds <= 0) {
+            purgeRunnable.run();
+        } else {
+            autoKillHandler.postDelayed(purgeRunnable, autoKillDelaySeconds * 1000L);
+        }
+    }
+
+    private void cleanPurgeApp(String packageName) {
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+            ComponentName admin = DeviceAdminReceiver.getComponentName(this);
+
+            if (dpm == null || admin == null) {
+                Log.e(TAG, "Cannot purge app - DPM or admin is null");
+                return;
+            }
+
+            // 1. Suspend the app (kills process, removes from recents, cancels alarms)
+            dpm.setPackagesSuspended(admin, new String[]{packageName}, true);
+
+            // 2. Unsuspend after 500ms so app is ready for next manual launch
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    dpm.setPackagesSuspended(admin, new String[]{packageName}, false);
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to unsuspend app: " + packageName, e);
+                }
+            }, 500);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to purge app: " + packageName, e);
+        }
     }
 }

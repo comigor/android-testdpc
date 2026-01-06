@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FF303030">
+
+    <!-- Description -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="Select apps to auto-kill when they go to background. Uses Device Owner suspend/unsuspend to cleanly purge app from memory and recents."
+        android:textSize="14sp"
+        android:textColor="#AAAAAA" />
+
+    <!-- App list -->
+    <ListView
+        android:id="@+id/listApps"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:divider="#FF505050"
+        android:dividerHeight="1dp" />
+
+</LinearLayout>

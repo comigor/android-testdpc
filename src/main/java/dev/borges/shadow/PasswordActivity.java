@@ -1,6 +1,7 @@
 package dev.borges.shadow;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.UserManager;
@@ -23,13 +24,18 @@ import dev.borges.shadow.util.PasswordHelper;
 
 public class PasswordActivity extends FragmentActivity {
     private static final String TAG = "PasswordActivity";
+    public static final String EXTRA_LAUNCH_SETTINGS_ON_SUCCESS = "launch_settings_on_success";
 
     private EditText etCurrentPassword, etPassword, etConfirmPassword;
+    private boolean shouldLaunchSettingsOnSuccess = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_password);
+
+        // Check if we should launch SettingsActivity after successful auth (e.g., from T9 code)
+        shouldLaunchSettingsOnSuccess = getIntent().getBooleanExtra(EXTRA_LAUNCH_SETTINGS_ON_SUCCESS, false);
 
         checkAndRequestSMSPermissions();
 
@@ -70,6 +76,18 @@ public class PasswordActivity extends FragmentActivity {
         }
     }
 
+    private void onAuthenticationSuccess() {
+        if (shouldLaunchSettingsOnSuccess) {
+            // Launched from T9 code - open SettingsActivity and skip re-authentication
+            Intent settingsIntent = new Intent(this, SettingsActivity.class);
+            settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            settingsIntent.putExtra(SettingsActivity.EXTRA_ALREADY_AUTHENTICATED, true);
+            startActivity(settingsIntent);
+        }
+        setResult(RESULT_OK);
+        finish();
+    }
+
     private void savePassword() {
         String password = etPassword.getText().toString();
         String confirmPassword = etConfirmPassword.getText().toString();
@@ -81,8 +99,7 @@ public class PasswordActivity extends FragmentActivity {
 
         String passwordHash = PasswordHelper.hashPassword(password);
         PasswordHelper.storePasswordHash(this, passwordHash);
-        setResult(RESULT_OK);
-        finish();
+        onAuthenticationSuccess();
     }
 
     private void verifyPassword() {
@@ -90,8 +107,7 @@ public class PasswordActivity extends FragmentActivity {
 
         if (PasswordHelper.checkPassword(this, enteredPassword)) {
             Toast.makeText(this, "Access Granted", Toast.LENGTH_SHORT).show();
-            setResult(RESULT_OK);
-            finish();
+            onAuthenticationSuccess();
         } else {
             Toast.makeText(this, "Incorrect Password", Toast.LENGTH_SHORT).show();
         }
@@ -116,8 +132,7 @@ public class PasswordActivity extends FragmentActivity {
             String passwordHash = PasswordHelper.hashPassword(newPassword);
             PasswordHelper.storePasswordHash(this, passwordHash);
             Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show();
-            setResult(RESULT_OK);
-            finish();
+            onAuthenticationSuccess();
         } else {
             Toast.makeText(this, "Current password is incorrect!", Toast.LENGTH_SHORT).show();
         }
@@ -162,8 +177,7 @@ public class PasswordActivity extends FragmentActivity {
                 public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                     super.onAuthenticationSucceeded(result);
                     Toast.makeText(PasswordActivity.this, "Access Granted (Biometric)", Toast.LENGTH_SHORT).show();
-                    setResult(RESULT_OK);
-                    finish();
+                    onAuthenticationSuccess();
                 }
 
                 @Override

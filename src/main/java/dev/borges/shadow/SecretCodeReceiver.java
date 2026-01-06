@@ -20,6 +20,7 @@ public class SecretCodeReceiver extends BroadcastReceiver {
             // Launch password activity (which will then go to settings if authenticated)
             Intent launchIntent = new Intent(context, PasswordActivity.class);
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            launchIntent.putExtra(PasswordActivity.EXTRA_LAUNCH_SETTINGS_ON_SUCCESS, true);
             context.startActivity(launchIntent);
         }
     }

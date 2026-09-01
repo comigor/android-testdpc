@@ -35,6 +35,7 @@ public class AutoKillAppsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        android.util.Log.i("[DEBUG-nav]", "AutoKillAppsActivity.onResume: isAuthenticated=" + SettingsActivity.isAuthenticated());
         if (!SettingsActivity.isAuthenticated()) {
             finish();
         }
@@ -43,6 +44,7 @@ public class AutoKillAppsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        android.util.Log.i("[DEBUG-nav]", "AutoKillAppsActivity.onPause: isFinishing=" + isFinishing());
         if (!isFinishing()) {
             SettingsActivity.clearAuthentication();
         }

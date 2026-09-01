@@ -82,6 +82,8 @@ public class SettingsActivity extends AppCompatActivity {
 
     /** Clear authentication state - called by sub-activities on pause */
     public static void clearAuthentication() {
+        StackTraceElement caller = new Throwable().getStackTrace()[1];
+        android.util.Log.i("[DEBUG-nav]", "clearAuthentication() called from " + caller.getClassName() + "." + caller.getMethodName() + ":" + caller.getLineNumber());
         isAuthenticated = false;
     }
 
@@ -92,6 +94,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     /** Mark that an in-app navigation is in progress, so pausing doesn't deauth. */
     public static void setNavigatingToSubActivity(boolean navigating) {
+        android.util.Log.i("[DEBUG-nav]", "setNavigatingToSubActivity(" + navigating + ")");
         navigatingToSubActivity = navigating;
     }
 
@@ -142,6 +145,7 @@ public class SettingsActivity extends AppCompatActivity {
         super.onResume();
         // Clear the navigation flag when we return from sub-activities
         navigatingToSubActivity = false;
+        android.util.Log.i("[DEBUG-nav]", "SettingsActivity.onResume: isAuthenticated=" + isAuthenticated);
 
         if (isDeviceOwner && getSystemService(UserManager.class).isSystemUser()) {
             devicePolicyManager.clearUserRestriction(adminComponentName, UserManager.DISALLOW_USER_SWITCH);
@@ -164,6 +168,7 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         // Only clear authentication if NOT navigating to our own sub-activities
+        android.util.Log.i("[DEBUG-nav]", "SettingsActivity.onPause: navigating=" + navigatingToSubActivity + " isAuthenticated=" + isAuthenticated);
         if (!navigatingToSubActivity) {
             isAuthenticated = false;
         }

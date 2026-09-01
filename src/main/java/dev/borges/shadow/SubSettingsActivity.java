@@ -54,6 +54,7 @@ public abstract class SubSettingsActivity extends AppCompatActivity {
         super.onResume();
         // Consume an in-flight navigation guard
         SettingsActivity.setNavigatingToSubActivity(false);
+        android.util.Log.i("[DEBUG-nav]", getClass().getSimpleName() + ".onResume: isAuthenticated=" + SettingsActivity.isAuthenticated());
         // If not authenticated, finish and go back to main settings (which will prompt for password)
         if (!SettingsActivity.isAuthenticated()) {
             finish();
@@ -63,6 +64,7 @@ public abstract class SubSettingsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        android.util.Log.i("[DEBUG-nav]", getClass().getSimpleName() + ".onPause: isFinishing=" + isFinishing() + " navigating=" + SettingsActivity.isNavigatingToSubActivity());
         // Clear authentication only when backgrounding (not when pressing back or navigating in-app)
         if (!isFinishing() && !SettingsActivity.isNavigatingToSubActivity()) {
             SettingsActivity.clearAuthentication();

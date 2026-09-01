@@ -40,6 +40,7 @@ public class HiddenAppsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        Log.i("[DEBUG-nav]", "HiddenAppsActivity.onResume: isAuthenticated=" + SettingsActivity.isAuthenticated());
         if (!SettingsActivity.isAuthenticated()) {
             finish();
         }
@@ -48,6 +49,7 @@ public class HiddenAppsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        Log.i("[DEBUG-nav]", "HiddenAppsActivity.onPause: isFinishing=" + isFinishing());
         if (!isFinishing()) {
             SettingsActivity.clearAuthentication();
         }

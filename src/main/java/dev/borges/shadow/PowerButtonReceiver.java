@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.UserManager;
 import android.util.Log;
 import android.os.Vibrator;
 import android.os.VibrationEffect;
@@ -143,6 +144,11 @@ public class PowerButtonReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(final Context context, final Intent intent) {
+        // Settings and encrypted prefs live in credential-protected storage, unavailable before first unlock
+        if (!context.getSystemService(UserManager.class).isUserUnlocked()) {
+            Log.d(TAG, "User not unlocked yet, ignoring " + intent.getAction());
+            return;
+        }
         // Check for pending theft mode on every screen event
         checkPendingTheftMode(context);
 
@@ -202,6 +208,10 @@ public class PowerButtonReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "Device booted (" + intent.getAction() + ")! Starting my service/task.");
+            if (!context.getSystemService(UserManager.class).isUserUnlocked()) {
+                Log.d(TAG, "User not unlocked yet, deferring to BOOT_COMPLETED after unlock");
+                return;
+            }
             PowerButtonReceiver.registerReceiver(context.getApplicationContext());
             // Check for pending theft mode on boot
             PowerButtonReceiver.checkPendingTheftMode(context.getApplicationContext());

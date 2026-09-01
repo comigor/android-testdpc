@@ -26,6 +26,7 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -276,15 +277,51 @@
             android:theme="@style/SettingsTheme" />
 
         <activity
-            android:name="dev.borges.shadow.SetupWizardActivity"
-            android:exported="false"
-            android:label="Shadow Setup"
-            android:theme="@style/SettingsTheme" />
-
-        <activity
             android:name="dev.borges.shadow.AutoKillAppsActivity"
             android:exported="false"
             android:label="Auto-Kill Apps"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.DecoyProfileActivity"
+            android:exported="false"
+            android:label="Decoy Profile"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.ProtectionSetupActivity"
+            android:exported="false"
+            android:label="Protection Setup"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.PowerOffPreventionActivity"
+            android:exported="false"
+            android:label="Power Off Prevention"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.TheftModeSettingsActivity"
+            android:exported="false"
+            android:label="Theft Mode"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.WatchProtectionActivity"
+            android:exported="false"
+            android:label="Watch Protection"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.WristDetectionActivity"
+            android:exported="false"
+            android:label="Wrist Detection"
+            android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.FRPSettingsActivity"
+            android:exported="false"
+            android:label="Factory Reset Protection"
             android:theme="@style/SettingsTheme" />
 
         <!-- <activity

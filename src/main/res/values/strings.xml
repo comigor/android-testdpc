@@ -16,8 +16,8 @@
 
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
 
-    <string name="app_name">Test DPC</string>
-    <string name="setup_app_name">Set up Test DPC</string>
+    <string name="app_name">Shadow</string>
+    <string name="setup_app_name">Set up Shadow</string>
     <string name="cancel">Cancel</string>
     <string name="set_up_managed_profile">Set up managed profile</string>
     <string name="set_up_device_owner">Set up device owner</string>
@@ -25,8 +25,8 @@
     <string name="setup_management_message">This app is currently not the owner of this device or
         profile. Please select an option below and tap Next to set up appropriate management by this app.</string>
     <string name="setup_management_message_for_do">This app is currently set as device owner. Please select the options below and tap Next to create a profile managed by the same app</string>
-    <string name="provisioning_not_possible">TestDPC isn\'t currently allowed to be set up as the profile or device owner.</string>
-    <string name="provisioning_not_possible_for_do">TestDPC isn\'t currently allowed to create a managed profile.</string>
+    <string name="provisioning_not_possible">Shadow isn\'t currently allowed to be set up as the profile or device owner.</string>
+    <string name="provisioning_not_possible_for_do">Shadow isn\'t currently allowed to create a managed profile.</string>
     <string name="exit">Exit</string>
     <string name="managed_account_message">Added account that requires management:</string>
     <string name="managed_account_complete_message">Added account that is now managed:</string>
@@ -87,7 +87,7 @@
     </string>
     <string name="policies_management">Policy management</string>
     <string name="other_owner_already_setup_error">There is already a device/profile owner, cannot
-        start TestDPC</string>
+        start Shadow</string>
     <string name="invalid_launch_intent_no_account">No account found on incoming intent</string>
     <string name="device_admin_receiver_failure">Failed to become device/profile owner</string>
     <string name="menu_search_title">Search</string>
@@ -127,8 +127,8 @@
     <string name="this_is_not_an_admin">This app is not an admin.</string>
 
     <!-- Strings for provisioning disclaimers-->
-    <string name="default_disclaimer_company_name">TestDPC Company</string>
-    <string name="default_disclaimer_emm_name">TestDPC EMM</string>
+    <string name="default_disclaimer_company_name">Shadow Company</string>
+    <string name="default_disclaimer_emm_name">Shadow EMM</string>
 
     <!-- Strings for device owner management -->
     <string name="device_owner_management">Device owner management</string>
@@ -724,15 +724,15 @@
     <string name="failed_to_retrieve_pre_reboot_security_logs">Failed to retrieve pre-reboot security logs, make sure your device supports it</string>
     <string name="exception_retrieving_security_logs">Not allowed to retrieve security logs, SecurityException thrown</string>
     <string name="security_logs_retrieved_message">---- Logs retrieved  %s ----</string>
-    <string name="on_security_logs_available">Test DPC: Security logs ready to be retrieved</string>
+    <string name="on_security_logs_available">Shadow: Security logs ready to be retrieved</string>
 
     <!-- Network logging -->
     <string name="enable_network_logging">Enable network logging</string>
     <string name="request_network_logs">Request network logs</string>
-    <string name="on_network_logs_available">Test DPC: Network logs ready to be retrieved</string>
-    <string name="on_network_logs_available_success">Test DPC: Network logs batch %d retrieved</string>
-    <string name="on_network_logs_available_failure">Test DPC: Could not retrieve network logs</string>
-    <string name="on_network_logs_available_token_failure">Test DPC: Could not retrieve network logs batch %d</string>
+    <string name="on_network_logs_available">Shadow: Network logs ready to be retrieved</string>
+    <string name="on_network_logs_available_success">Shadow: Network logs batch %d retrieved</string>
+    <string name="on_network_logs_available_failure">Shadow: Could not retrieve network logs</string>
+    <string name="on_network_logs_available_token_failure">Shadow: Could not retrieve network logs batch %d</string>
 
     <!-- Accessibility -->
     <string name="accessibility_title">Accessibility</string>
@@ -944,7 +944,7 @@
     <string name="network_stats_uid">UID = %1$d</string>
     <string name="network_stats_items">%1$d items</string>
     <string name="network_stats_security_error_msg">
-        To see this data, Test DPC needs to be enabled under Settings &gt; Security &gt; Apps with usage access.
+        To see this data, Shadow needs to be enabled under Settings &gt; Security &gt; Apps with usage access.
     </string>
 
     <!-- Strings for permission policies -->
@@ -1047,7 +1047,7 @@
     <string name="password_expiration_aggregate">Expiration by all/other admins</string>
 
     <string name="password_expired_title">Password has expired</string>
-    <string name="password_expired_by_self">According to a policy set by TestDPC.</string>
+    <string name="password_expired_by_self">According to a policy set by Shadow.</string>
     <string name="password_expired_by_others">According to a policy set by another admin.</string>
     <string name="password_history_length">Password history length</string>
 
@@ -1109,7 +1109,7 @@
         This action is disabled by your administrator. Contact someone@example.com for support.
     </string>
     <string name="default_long_message">
-        This profile or device is managed by TestDPC. You can contact tech
+        This profile or device is managed by Shadow. You can contact tech
         support on:\n\n
         America: +1 555-0100\n\n
         APAC: +1 555-0100\n\n
@@ -1192,7 +1192,7 @@
     <string name="reset_password_fragment_new_password_label">New password:</string>
     <string name="reset_password_fragment_set_password">Set password</string>
     <string name="reset_password_no_token">No token</string>
-    <string name="reset_password_foreground_notification">TestDPC reset password service running</string>
+    <string name="reset_password_foreground_notification">Shadow reset password service running</string>
     <string name="reset_password_notification">Swipe away this notification to reset password</string>
 
     <string name="package_changed_notification_title">Package change(s) are observed</string>
@@ -1202,8 +1202,8 @@
     <string name="cross_profile_section">Cross profile</string>
     <string name="cross_profile_apps_api">Demonstrate CrossProfileApps API</string>
     <string name="cross_profile_apps_api_explanation">By using the CrossProfileApps APIs, apps can start an instance in another profile, provided that the app is also installed in that profile.</string>
-    <string name="cross_profile_apps_available">TestDPC is installed in another profile, tap the icon to launch it in that profile.</string>
-    <string name="cross_profile_apps_not_available">TestDPC is not installed in another profile, try installing it and come back to here.</string>
+    <string name="cross_profile_apps_available">Shadow is installed in another profile, tap the icon to launch it in that profile.</string>
+    <string name="cross_profile_apps_not_available">Shadow is not installed in another profile, try installing it and come back to here.</string>
 
     <string name="cross_profile_apps_allowlist">Allow-listed cross profile apps</string>
     <string name="cross_profile_apps_enabled_title">Enabled cross profile apps</string>
@@ -1214,7 +1214,7 @@
     <string name="cross_profile_apps_reset_button_text">Reset cross profile apps</string>
 
     <string name="install_update">Install update from file</string>
-    <string name="install_update_prompt">This will attempt to install the update file ota.zip in the TestDPC files directory, if the file exists (i.e. if you pushed it there with adb). Do you want to continue?</string>
+    <string name="install_update_prompt">This will attempt to install the update file ota.zip in the Shadow files directory, if the file exists (i.e. if you pushed it there with adb). Do you want to continue?</string>
     <string name="install_update_prompt_yes">Yes</string>
     <string name="install_update_prompt_no">No</string>
 
@@ -1225,7 +1225,7 @@
     <string name="dpc_login_po">Managed profile</string>
     <string name="dpc_login_comp">Managed profile on a fully managed device</string>
     <string name="dpc_policy_compliance_title">Dpc policy compliance</string>
-    <string name="dpc_policy_compliance_explanation">TestDPC setup is completed.</string>
+    <string name="dpc_policy_compliance_explanation">Shadow setup is completed.</string>
 
     <string name="vpn_exempted_packages">Exempted packages</string>
     <string name="vpn_lockdown">Lockdown</string>
@@ -1287,8 +1287,8 @@
     <string name="unsafe">unsafe</string>
 
     <!--  Strings used in the activity launched by android.settings.SHOW_WORK_POLICY_INFO -->
-    <string name="work_policy_info_name">TestDPC Work Policy Info</string>
-    <string name="work_policy_info_description">This is the work policy info for TestDPC."
+    <string name="work_policy_info_name">Shadow Work Policy Info</string>
+    <string name="work_policy_info_description">This is the work policy info for Shadow."
     </string>
 
     <string name="mte_section">MTE settings</string>

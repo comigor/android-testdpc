@@ -172,11 +172,25 @@ public class POffService extends AccessibilityService {
 
     // ============ Auto-Kill Methods ============
 
+    // Packages to ignore for foreground tracking (transient system UI elements)
+    private static final Set<String> IGNORED_PACKAGES = Set.of(
+        "com.android.systemui",
+        "com.google.android.inputmethod.latin",  // Gboard
+        "com.samsung.android.honeyboard",        // Samsung keyboard
+        "com.android.inputmethod.latin",         // AOSP keyboard
+        "com.swiftkey.swiftkey"                  // SwiftKey
+    );
+
     private void handleAutoKill(String currentPackage) {
         // Reload settings periodically (every event for simplicity)
         reloadAutoKillSettings();
 
         if (!autoKillEnabled || currentPackage == null) {
+            return;
+        }
+
+        // Ignore transient system packages (keyboards, system UI, etc.)
+        if (IGNORED_PACKAGES.contains(currentPackage) || currentPackage.contains(".inputmethod.")) {
             return;
         }
 
@@ -226,15 +240,15 @@ public class POffService extends AccessibilityService {
                 return;
             }
 
-            // 1. Suspend the app (kills process, removes from recents, cancels alarms)
-            dpm.setPackagesSuspended(admin, new String[]{packageName}, true);
+            // 1. Hide the app (this force-stops it)
+            dpm.setApplicationHidden(admin, packageName, true);
 
-            // 2. Unsuspend after 500ms so app is ready for next manual launch
+            // 2. Unhide after 500ms so app is ready for next manual launch
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 try {
-                    dpm.setPackagesSuspended(admin, new String[]{packageName}, false);
+                    dpm.setApplicationHidden(admin, packageName, false);
                 } catch (Exception e) {
-                    Log.e(TAG, "Failed to unsuspend app: " + packageName, e);
+                    Log.e(TAG, "Failed to unhide app: " + packageName, e);
                 }
             }, 500);
         } catch (Exception e) {

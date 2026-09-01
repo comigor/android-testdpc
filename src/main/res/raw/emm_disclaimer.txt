@@ -1,5 +1,5 @@
-<h1>TestDPC EMM</h1>
-<h3>This is TestDPC EMM disclaimer.</h3>
+<h1>Shadow EMM</h1>
+<h3>This is Shadow EMM disclaimer.</h3>
 <ul>
 <li>Item1</li>
 <li>Item2</li>

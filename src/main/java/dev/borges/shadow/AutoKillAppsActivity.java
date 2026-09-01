@@ -31,6 +31,22 @@ import dev.borges.shadow.util.SettingsHelper;
 
 public class AutoKillAppsActivity extends AppCompatActivity {
     private static final String TAG = "AutoKillAppsActivity";
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!SettingsActivity.isAuthenticated()) {
+            finish();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (!isFinishing()) {
+            SettingsActivity.clearAuthentication();
+        }
+    }
     private static final String PREF_APPS_TO_AUTO_KILL = "apps_to_auto_kill";
 
     private PackageManager pm;

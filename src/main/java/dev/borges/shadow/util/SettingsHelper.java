@@ -45,6 +45,11 @@ public abstract class SettingsHelper {
     public static final String AUTO_KILL_ENABLED_KEY = "auto_kill_enabled";
     public static final String AUTO_KILL_DELAY_KEY = "auto_kill_delay";
 
+    // Feature enable keys
+    public static final String POWER_OFF_PREVENTION_ENABLED_KEY = "power_off_prevention_enabled";
+    public static final String THEFT_MODE_ENABLED_KEY = "theft_mode_enabled";
+    public static final String FRP_ENABLED_KEY = "frp_enabled";
+
     public static final Map<String, String> DEFAULTS = Map.ofEntries(
             Map.entry(ORGANIZATION_NAME_KEY, ""),
             Map.entry(DETECT_KEYWORDS_KEY, "power off,restart,emergency"),
@@ -66,7 +71,10 @@ public abstract class SettingsHelper {
             Map.entry(WRIST_REMOVAL_TIMEOUT_KEY, "30"),
             Map.entry(WIZARD_COMPLETED_KEY, "false"),
             Map.entry(AUTO_KILL_ENABLED_KEY, "false"),
-            Map.entry(AUTO_KILL_DELAY_KEY, "60")
+            Map.entry(AUTO_KILL_DELAY_KEY, "60"),
+            Map.entry(POWER_OFF_PREVENTION_ENABLED_KEY, "false"),
+            Map.entry(THEFT_MODE_ENABLED_KEY, "false"),
+            Map.entry(FRP_ENABLED_KEY, "false")
     );
 
     public static String getSetting(SharedPreferences sharedPreferences, String key) {

@@ -76,8 +76,19 @@ public class SettingsActivity extends AppCompatActivity {
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponentName;
     private boolean isDeviceOwner = false;
-    private boolean isAuthenticated = false;
+    private static boolean isAuthenticated = false;
+    private boolean navigatingToSubActivity = false;
     public static final String EXTRA_ALREADY_AUTHENTICATED = "already_authenticated";
+
+    /** Clear authentication state - called by sub-activities on pause */
+    public static void clearAuthentication() {
+        isAuthenticated = false;
+    }
+
+    /** Check if currently authenticated - called by sub-activities on resume */
+    public static boolean isAuthenticated() {
+        return isAuthenticated;
+    }
     private DownloadHelper downloadHelper;
     private android.os.Handler theftModeHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable theftModeUpdateRunnable;
@@ -85,20 +96,6 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // Check if setup wizard should be shown (only on main user)
-        SharedPreferences tempPrefs = SettingsHelper.getEncryptedSharedPreferences(this);
-        UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);
-        boolean isMainUser = um.isSystemUser();
-        String wizardCompleted = SettingsHelper.getSetting(tempPrefs, SettingsHelper.WIZARD_COMPLETED_KEY);
-
-        if (isMainUser && !"true".equals(wizardCompleted)) {
-            Intent wizardIntent = new Intent(this, SetupWizardActivity.class);
-            startActivity(wizardIntent);
-            finish();
-            return;
-        }
-
         setContentView(R.layout.activity_settings);
 
         // Check if already authenticated (e.g., from T9 code launch)
@@ -134,6 +131,8 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Clear the navigation flag when we return from sub-activities
+        navigatingToSubActivity = false;
 
         if (isDeviceOwner && getSystemService(UserManager.class).isSystemUser()) {
             devicePolicyManager.clearUserRestriction(adminComponentName, UserManager.DISALLOW_USER_SWITCH);
@@ -155,7 +154,10 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        isAuthenticated = false;
+        // Only clear authentication if NOT navigating to our own sub-activities
+        if (!navigatingToSubActivity) {
+            isAuthenticated = false;
+        }
         stopTheftModeTimer();
     }
 
@@ -186,80 +188,121 @@ public class SettingsActivity extends AppCompatActivity {
         // Status dashboard at the top
         addStatusDashboard();
 
-        decoySettingsContainer = new LinearLayout(this);
-        decoySettingsContainer.setOrientation(LinearLayout.VERTICAL);
-        decoySettingsContainer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        addTitle("Decoy Profile");
-        settingsContainer.addView(decoySettingsContainer);
-        updateDecoyProfileSettings();
-
-        addTitle("Permissions & Requirements");
-        addDeviceOwnerSetting();
         if (isDeviceOwner) {
+            // Feature sections as cards
+            addFeatureSections();
+
+            // Permissions section (inline)
+            addTitle("Permissions");
+            addDeviceOwnerSetting();
             addSmsPermissionSetting();
-            addTitle("Protection Setup");
-            addDevicePasswordTokenSetting();
-            addFingerprintLoginSetting();
-            addBackupServicesSetting();
-            addLocationEnabledSetting();
-            addOrganizationNameSetting();
-            addDeviceOwnerLockscreenInfoSetting();
-            addUserRestrictionsSetting();
-            addTitle("Power Off Prevention");
-            addAccessibilityServiceSetting();
-            addDetectKeywordsSetting();
-            addTitle("Theft Mode settings");
-            addTheftModeTitleSetting();
-            addTheftModeInstructionsSetting();
-            addPowerButtonPressesSetting();
-            addPressTimeWindowSetting();
-            addActivationDelaySetting();
-            addDeactivationSequenceSetting();
-            addHiddenAppsSetting();
-            addTitle("Auto-Kill Apps");
-            addAutoKillEnabledSetting();
-            addAutoKillDelaySetting();
-            addAutoKillAppsSetting();
-            addTitle("Watch Disconnect Protection");
-            addWatchDisconnectEnabledSetting();
-            addWatchDeviceSelectSetting();
-            addWatchDisconnectTimeoutSetting();
-            addTitle("Watch Companion App");
-            addWatchAppInstallerSetting();
-            addWatchAppStatusSetting();
-            addTitle("Wrist Detection (Wear OS)");
-            addWristDetectionEnabledSetting();
-            addWristRemovalTimeoutSetting();
-            addWristDetectionDescription();
-            addTitle("Factory Reset Protection (FRP)");
-            addFRPDescriptionSetting();
-            addFRPAccountsSetting();
-            addFRPToggleSetting();
+
+            // Extras section (inline)
             addTitle("Extras / dev");
             addTestModeSetting();
-            addSetupWizardSetting();
             addStealthModeSetting();
             addAppUpdateUrl();
             updateAppSetting();
             updateAppSetting2();
             addTestDPCSetting();
+        } else {
+            // Not device owner - show decoy profile return option
+            addTitle("Decoy Profile");
+            decoySettingsContainer = new LinearLayout(this);
+            decoySettingsContainer.setOrientation(LinearLayout.VERTICAL);
+            decoySettingsContainer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            settingsContainer.addView(decoySettingsContainer);
+            updateDecoyProfileSettings();
+
+            addTitle("Permissions");
+            addDeviceOwnerSetting();
         }
+
+        // Version info at the end
+        addVersionInfo();
+    }
+
+    private void addVersionInfo() {
+        String version = "Unknown";
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException ignored) {}
+
+        TextView versionText = new TextView(this);
+        versionText.setText("Version " + version);
+        versionText.setTextSize(12);
+        versionText.setTextColor(0xFF666666);
+        versionText.setGravity(android.view.Gravity.CENTER);
+        versionText.setPadding(0, dpToPx(24), 0, dpToPx(16));
+        settingsContainer.addView(versionText);
+    }
+
+    private void addFeatureSections() {
+        // Decoy Profile
+        settingsContainer.addView(createFeatureSection("Decoy Profile", () -> {
+            long decoySerial = shadowPrefs.getLong("decoy_serial", -1);
+            UserHandle existingUser = decoySerial != -1 ? getSystemService(UserManager.class).getUserForSerialNumber(decoySerial) : null;
+            return existingUser != null ? "Profile \"System\" active" : "Not configured";
+        }, null, DecoyProfileActivity.class));
+
+        // Protection Setup (no toggle)
+        settingsContainer.addView(createFeatureSection("Protection Setup", () -> "Fingerprint, backups, location",
+            null, ProtectionSetupActivity.class));
+
+        // Power Off Prevention
+        settingsContainer.addView(createFeatureSection("Power Off Prevention", () -> {
+            boolean enabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.POWER_OFF_PREVENTION_ENABLED_KEY));
+            if (!enabled) return "Disabled";
+            boolean accessibilityEnabled = POffService.isAccessibilityServiceEnabled(this);
+            return accessibilityEnabled ? "Accessibility enabled" : "Accessibility not enabled";
+        }, SettingsHelper.POWER_OFF_PREVENTION_ENABLED_KEY, PowerOffPreventionActivity.class));
+
+        // Theft Mode
+        settingsContainer.addView(createFeatureSection("Theft Mode", () -> {
+            boolean enabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.THEFT_MODE_ENABLED_KEY));
+            if (!enabled) return "Disabled";
+            int hiddenApps = HiddenAppsActivity.getAppsToHide(this).size();
+            String presses = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY);
+            return hiddenApps + " apps hidden, " + presses + " presses";
+        }, SettingsHelper.THEFT_MODE_ENABLED_KEY, TheftModeSettingsActivity.class));
+
+        // Auto-Kill Apps
+        settingsContainer.addView(createFeatureSection("Auto-Kill Apps", () -> {
+            boolean enabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.AUTO_KILL_ENABLED_KEY));
+            if (!enabled) return "Disabled";
+            int count = AutoKillAppsActivity.getAppsToAutoKill(this).size();
+            return count + " apps selected";
+        }, SettingsHelper.AUTO_KILL_ENABLED_KEY, AutoKillAppsActivity.class));
+
+        // Watch Protection
+        settingsContainer.addView(createFeatureSection("Watch Protection", () -> {
+            boolean enabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WATCH_DISCONNECT_ENABLED_KEY));
+            if (!enabled) return "Disabled";
+            String watchName = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WATCH_DEVICE_NAME_KEY);
+            return watchName.isEmpty() ? "No watch selected" : watchName;
+        }, SettingsHelper.WATCH_DISCONNECT_ENABLED_KEY, WatchProtectionActivity.class));
+
+        // Wrist Detection
+        settingsContainer.addView(createFeatureSection("Wrist Detection", () -> {
+            boolean enabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WRIST_DETECTION_ENABLED_KEY));
+            if (!enabled) return "Disabled";
+            String timeout = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.WRIST_REMOVAL_TIMEOUT_KEY);
+            return timeout + "s timeout";
+        }, SettingsHelper.WRIST_DETECTION_ENABLED_KEY, WristDetectionActivity.class));
+
+        // FRP
+        settingsContainer.addView(createFeatureSection("Factory Reset Protection", () -> {
+            boolean enabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.FRP_ENABLED_KEY));
+            if (!enabled) return "Disabled";
+            String accounts = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.FRP_ACCOUNT_IDS);
+            long count = java.util.Arrays.stream(accounts.split(",")).map(String::trim).filter(s -> s.length() == 21).count();
+            return count + " accounts configured";
+        }, SettingsHelper.FRP_ENABLED_KEY, FRPSettingsActivity.class));
     }
 
     private void addTestModeSetting() {
         View textView = createClickableTextItem("Test Mode", () ->
             startActivity(new Intent(this, TestModeActivity.class)));
-        settingsContainer.addView(textView);
-    }
-
-    private void addSetupWizardSetting() {
-        View textView = createClickableTextItem("Run Setup Wizard", () -> {
-            // Reset wizard completed flag and start wizard
-            SettingsHelper.setSetting(sharedPreferences, SettingsHelper.WIZARD_COMPLETED_KEY, "false");
-            startActivity(new Intent(this, SetupWizardActivity.class));
-            finish();
-        });
         settingsContainer.addView(textView);
     }
 
@@ -926,7 +969,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addTestDPCSetting() {
-        View textView = createClickableTextItem("Test DPC", () -> startActivity(new Intent(this, PolicyManagementActivity.class)));
+        View textView = createClickableTextItem("Policy Management", () -> startActivity(new Intent(this, PolicyManagementActivity.class)));
         settingsContainer.addView(textView);
     }
 
@@ -1081,6 +1124,65 @@ public class SettingsActivity extends AppCompatActivity {
         });
         layout.addView(editText);
         return layout;
+    }
+
+    /**
+     * Creates a feature section card with title, subtitle, optional toggle, and click to open config Activity.
+     * @param title Feature name
+     * @param subtitleProvider Provides the subtitle text (called on each refresh)
+     * @param enableKey Settings key for enable/disable toggle (null for no toggle)
+     * @param configActivity Activity class to open when clicked
+     */
+    private View createFeatureSection(String title, java.util.function.Supplier<String> subtitleProvider,
+                                       String enableKey, Class<?> configActivity) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        card.setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12));
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setClickable(true);
+        card.setFocusable(true);
+
+        // Left side: title and subtitle
+        LinearLayout textContainer = new LinearLayout(this);
+        textContainer.setOrientation(LinearLayout.VERTICAL);
+        textContainer.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextSize(16);
+        titleView.setTextColor(0xFFFFFFFF);
+        textContainer.addView(titleView);
+
+        TextView subtitleView = new TextView(this);
+        subtitleView.setText(subtitleProvider.get());
+        subtitleView.setTextSize(12);
+        subtitleView.setTextColor(0xFFAAAAAA);
+        textContainer.addView(subtitleView);
+
+        card.addView(textContainer);
+
+        // Right side: toggle switch (if enableKey provided)
+        if (enableKey != null) {
+            SwitchCompat toggle = new SwitchCompat(this);
+            boolean isEnabled = "true".equals(SettingsHelper.getSetting(sharedPreferences, enableKey));
+            toggle.setChecked(isEnabled);
+            toggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                SettingsHelper.setSetting(sharedPreferences, enableKey, isChecked ? "true" : "false");
+                subtitleView.setText(subtitleProvider.get());
+            });
+            card.addView(toggle);
+        }
+
+        // Click to open config activity
+        card.setOnClickListener(v -> {
+            if (configActivity != null) {
+                navigatingToSubActivity = true;
+                startActivity(new Intent(this, configActivity));
+            }
+        });
+
+        return card;
     }
 
     private int dpToPx(int dp) {

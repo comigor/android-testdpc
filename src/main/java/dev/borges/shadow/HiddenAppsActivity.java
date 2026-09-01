@@ -36,6 +36,22 @@ import java.util.Set;
 
 public class HiddenAppsActivity extends AppCompatActivity {
     private static final String TAG = "HiddenAppsActivity";
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!SettingsActivity.isAuthenticated()) {
+            finish();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (!isFinishing()) {
+            SettingsActivity.clearAuthentication();
+        }
+    }
     private static final String PREF_APPS_TO_HIDE = "apps_to_hide_on_theft";
     private static final String PREF_CURRENTLY_HIDDEN = "currently_hidden_apps";
 
@@ -241,6 +257,14 @@ public class HiddenAppsActivity extends AppCompatActivity {
         }
 
         prefs.edit().putStringSet(PREF_CURRENTLY_HIDDEN, new HashSet<>()).apply();
+    }
+
+    /**
+     * Get the set of apps that are configured to be hidden on theft mode.
+     */
+    public static Set<String> getAppsToHide(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
+        return new HashSet<>(prefs.getStringSet(PREF_APPS_TO_HIDE, new HashSet<>()));
     }
 
     private class AppListAdapter extends ArrayAdapter<AppInfo> {

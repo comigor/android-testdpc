@@ -21,7 +21,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Test DPC"
+rootProject.name = "Shadow"
 include ':app'
 include ':wear'
 

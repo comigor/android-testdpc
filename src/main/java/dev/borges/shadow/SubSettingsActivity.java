@@ -52,6 +52,8 @@ public abstract class SubSettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Consume an in-flight navigation guard
+        SettingsActivity.setNavigatingToSubActivity(false);
         // If not authenticated, finish and go back to main settings (which will prompt for password)
         if (!SettingsActivity.isAuthenticated()) {
             finish();
@@ -61,10 +63,16 @@ public abstract class SubSettingsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // Clear authentication only when backgrounding (not when pressing back)
-        if (!isFinishing()) {
+        // Clear authentication only when backgrounding (not when pressing back or navigating in-app)
+        if (!isFinishing() && !SettingsActivity.isNavigatingToSubActivity()) {
             SettingsActivity.clearAuthentication();
         }
+    }
+
+    /** Start another in-app settings screen without deauthenticating. */
+    protected void startChildActivity(android.content.Intent intent) {
+        SettingsActivity.setNavigatingToSubActivity(true);
+        startActivity(intent);
     }
 
     /**

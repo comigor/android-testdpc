@@ -77,7 +77,7 @@ public class SettingsActivity extends AppCompatActivity {
     private ComponentName adminComponentName;
     private boolean isDeviceOwner = false;
     private static boolean isAuthenticated = false;
-    private boolean navigatingToSubActivity = false;
+    private static boolean navigatingToSubActivity = false;
     public static final String EXTRA_ALREADY_AUTHENTICATED = "already_authenticated";
 
     /** Clear authentication state - called by sub-activities on pause */
@@ -88,6 +88,15 @@ public class SettingsActivity extends AppCompatActivity {
     /** Check if currently authenticated - called by sub-activities on resume */
     public static boolean isAuthenticated() {
         return isAuthenticated;
+    }
+
+    /** Mark that an in-app navigation is in progress, so pausing doesn't deauth. */
+    public static void setNavigatingToSubActivity(boolean navigating) {
+        navigatingToSubActivity = navigating;
+    }
+
+    public static boolean isNavigatingToSubActivity() {
+        return navigatingToSubActivity;
     }
     private DownloadHelper downloadHelper;
     private android.os.Handler theftModeHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -752,7 +761,10 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addHiddenAppsSetting() {
-        View textView = createClickableTextItem("Apps to hide on theft mode", () -> startActivity(new Intent(this, HiddenAppsActivity.class)));
+        View textView = createClickableTextItem("Apps to hide on theft mode", () -> {
+            navigatingToSubActivity = true;
+            startActivity(new Intent(this, HiddenAppsActivity.class));
+        });
         settingsContainer.addView(textView);
     }
 
@@ -771,7 +783,10 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addAutoKillAppsSetting() {
-        View textView = createClickableTextItem("Select apps to auto-kill", () -> startActivity(new Intent(this, AutoKillAppsActivity.class)));
+        View textView = createClickableTextItem("Select apps to auto-kill", () -> {
+            navigatingToSubActivity = true;
+            startActivity(new Intent(this, AutoKillAppsActivity.class));
+        });
         settingsContainer.addView(textView);
     }
 

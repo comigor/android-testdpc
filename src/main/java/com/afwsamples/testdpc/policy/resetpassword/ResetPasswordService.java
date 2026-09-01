@@ -187,7 +187,6 @@ public class ResetPasswordService extends Service {
     mNm.notify(NOTIFICATION_RESET_RESULT, builder.build());
   }
 
-  @SuppressWarnings("UnspecifiedImmutableFlag") // TODO(b/210723613): proper fix
   private void showNotification() {
     // Only show notifications on owner profile (user 0)
     UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);

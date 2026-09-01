@@ -110,7 +110,6 @@ public class PackageInstallationUtils {
     return pendingIntent.getIntentSender();
   }
 
-  @SuppressWarnings("UnspecifiedImmutableFlag") // TODO(b/210723613): proper fix
   private static IntentSender createUninstallIntentSender(Context context, String packageName) {
     final Intent intent = new Intent(ACTION_UNINSTALL_COMPLETE);
     intent.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName);

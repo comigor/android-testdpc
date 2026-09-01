@@ -108,6 +108,23 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     }
   }
 
+  @Override
+  @TargetApi(VERSION_CODES.S)
+  public void onOperationSafetyStateChanged(Context context, int reasonType, boolean safe) {
+    Log.d(TAG, "onOperationSafetyStateChanged(): " + reasonType + " = " + safe);
+    String status = safe ? context.getString(R.string.safe) : context.getString(R.string.unsafe);
+    String reason;
+    switch (reasonType) {
+      case DevicePolicyManager.OPERATION_SAFETY_REASON_DRIVING_DISTRACTION:
+        reason = context.getString(R.string.unsafe_operation_reason_driving_distraction);
+        break;
+      default:
+        reason = context.getString(R.string.unsafe_operation_reason_driving_undefined);
+    }
+    String message = context.getString(R.string.safety_operations_change_message, reason, status);
+    showToast(context, message);
+  }
+
   @TargetApi(VERSION_CODES.N)
   @Override
   public void onSecurityLogsAvailable(Context context, Intent intent) {

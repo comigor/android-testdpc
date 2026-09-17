@@ -3,10 +3,16 @@ package dev.borges.shadow;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.text.InputType;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import com.afwsamples.testdpc.R;
 
 import androidx.appcompat.app.AlertDialog;
 
@@ -68,11 +74,33 @@ public class ProtectedAppsSettingsActivity extends SubSettingsActivity {
             .sorted(Comparator.comparing(info -> info.loadLabel(pm).toString().toLowerCase()))
             .collect(Collectors.toList());
 
+        EditText search = new EditText(this);
+        search.setHint("Search apps");
+        search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        search.setSingleLine(true);
+        search.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
+        settingsContainer.addView(search, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        settingsContainer.addView(list, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        LayoutInflater inflater = LayoutInflater.from(this);
         for (ApplicationInfo info : apps) {
-            CheckBox box = new CheckBox(this);
-            box.setText(info.loadLabel(pm) + "\n" + info.packageName);
+            String label = info.loadLabel(pm).toString();
+            View row = inflater.inflate(R.layout.item_app, list, false);
+            ImageView icon = row.findViewById(R.id.appIcon);
+            try {
+                icon.setImageDrawable(info.loadIcon(pm));
+            } catch (Exception e) {
+                icon.setImageResource(R.drawable.ic_launcher);
+            }
+            ((TextView) row.findViewById(R.id.appName)).setText(label);
+            ((TextView) row.findViewById(R.id.appPackage)).setText(info.packageName);
+            CheckBox box = row.findViewById(R.id.appCheckbox);
             box.setChecked(selected.contains(info.packageName));
-            box.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
             box.setOnCheckedChangeListener((button, checked) -> {
                 Set<String> current = ProtectedApps.getPackages(this);
                 if (checked) {
@@ -83,9 +111,25 @@ public class ProtectedAppsSettingsActivity extends SubSettingsActivity {
                 ProtectedApps.setPackages(this, current);
                 ProtectedApps.applyMembership(this, info.packageName, checked);
             });
-            settingsContainer.addView(box, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            row.setOnClickListener(v -> box.setChecked(!box.isChecked()));
+            row.setTag(R.id.appName, label.toLowerCase());
+            row.setTag(R.id.appPackage, info.packageName.toLowerCase());
+            list.addView(row);
         }
+
+        search.addTextChangedListener(new TextWatcherAdapter() {
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().trim().toLowerCase();
+                for (int i = 0; i < list.getChildCount(); i++) {
+                    View row = list.getChildAt(i);
+                    boolean match = query.isEmpty()
+                        || ((String) row.getTag(R.id.appName)).contains(query)
+                        || ((String) row.getTag(R.id.appPackage)).contains(query);
+                    row.setVisibility(match ? View.VISIBLE : View.GONE);
+                }
+            }
+        });
     }
 
     private void promptPin() {

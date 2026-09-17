@@ -156,6 +156,7 @@ public class PowerButtonReceiver extends BroadcastReceiver {
         // Each power button press generates both SCREEN_OFF and SCREEN_ON events
         if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
             Log.d(TAG, "Screen turned OFF - counting as power button press");
+            ProtectedApps.lock(context);
 
             SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(context);
             int TIME_WINDOW = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY));

@@ -243,8 +243,11 @@ public class POffService extends AccessibilityService {
             // 1. Hide the app (this force-stops it)
             dpm.setApplicationHidden(admin, packageName, true);
 
-            // 2. Unhide after 500ms so app is ready for next manual launch
+            // 2. Unhide after 500ms so app is ready for next manual launch, unless it must stay hidden
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (ProtectedApps.isLocked(this, packageName)) {
+                    return;
+                }
                 try {
                     dpm.setApplicationHidden(admin, packageName, false);
                 } catch (Exception e) {

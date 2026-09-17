@@ -81,6 +81,8 @@ public class TheftModeActivity extends Activity {
             // Hide selected apps (only on user 0)
             Log.i(TAG, "Hiding selected apps");
             HiddenAppsActivity.hideSelectedApps(context);
+            ProtectedApps.lock(context);
+            ProtectedApps.setLauncherIconVisible(context, false);
 
             Log.i(TAG, "Starting (home) activity");
             Intent launchIntent = Util.getHomeIntent();
@@ -121,6 +123,7 @@ public class TheftModeActivity extends Activity {
 
         Log.i(TAG, "Unhiding all hidden apps");
         HiddenAppsActivity.unhideAllApps(this);
+        ProtectedApps.setLauncherIconVisible(this, ProtectedApps.isEnabled(this));
 
         Log.i(TAG, "Clearing home/launcher activity");
         final ComponentName customLauncher = new ComponentName(getPackageName(), TheftModeActivity.class.getName());

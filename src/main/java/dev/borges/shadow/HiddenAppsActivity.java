@@ -181,6 +181,10 @@ public class HiddenAppsActivity extends AppCompatActivity {
     }
 
     private void unhideApp(String packageName) {
+        if (ProtectedApps.isLocked(this, packageName)) {
+            Toast.makeText(this, "Protected app: unlock via Protected Apps PIN", Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
             boolean result = dpm.setApplicationHidden(admin, packageName, false);
             if (result) {
@@ -250,6 +254,10 @@ public class HiddenAppsActivity extends AppCompatActivity {
         Set<String> currentlyHidden = new HashSet<>(prefs.getStringSet(PREF_CURRENTLY_HIDDEN, new HashSet<>()));
 
         for (String packageName : currentlyHidden) {
+            if (ProtectedApps.isLocked(context, packageName)) {
+                Log.i(TAG, "Keeping protected app hidden: " + packageName);
+                continue;
+            }
             try {
                 dpm.setApplicationHidden(admin, packageName, false);
                 Log.i(TAG, "Unhidden app: " + packageName);

@@ -312,6 +312,13 @@ public class SettingsActivity extends AppCompatActivity {
             long count = java.util.Arrays.stream(accounts.split(",")).map(String::trim).filter(s -> s.length() == 21).count();
             return count + " accounts configured";
         }, SettingsHelper.FRP_ENABLED_KEY, FRPSettingsActivity.class));
+
+        // Protected Apps (toggle lives in its config screen: needs PIN check + launcher icon sync)
+        settingsContainer.addView(createFeatureSection("Protected Apps", () -> {
+            if (!ProtectedApps.isEnabled(this)) return "Disabled";
+            int count = ProtectedApps.getPackages(this).size();
+            return count + " apps, " + ProtectedApps.getWindowMinutes(this) + " min window";
+        }, null, ProtectedAppsSettingsActivity.class));
     }
 
     private void addTestModeSetting() {

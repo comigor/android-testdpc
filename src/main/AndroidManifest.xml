@@ -157,6 +157,15 @@
             android:exported="false" />
 
         <receiver
+            android:name="dev.borges.shadow.ProtectedAppsReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name="dev.borges.shadow.WatchDisconnectAlarmReceiver"
             android:enabled="true"
             android:exported="false" />
@@ -323,6 +332,26 @@
             android:exported="false"
             android:label="Factory Reset Protection"
             android:theme="@style/SettingsTheme" />
+
+        <activity
+            android:name="dev.borges.shadow.ProtectedAppsSettingsActivity"
+            android:exported="false"
+            android:label="Protected Apps"
+            android:theme="@style/SettingsTheme" />
+
+        <!-- Vault entry point; disabled until the feature is enabled, and during theft mode -->
+        <activity
+            android:name="dev.borges.shadow.ProtectedAppsActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="Vault"
+            android:theme="@style/SettingsTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <!-- <activity
                 android:name=".SetupManagementActivity"

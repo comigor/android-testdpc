@@ -50,6 +50,11 @@ public abstract class SettingsHelper {
     public static final String THEFT_MODE_ENABLED_KEY = "theft_mode_enabled";
     public static final String FRP_ENABLED_KEY = "frp_enabled";
 
+    // Protected apps (PIN-gated temporary access)
+    public static final String PROTECTED_APPS_ENABLED_KEY = "protected_apps_enabled";
+    public static final String PROTECTED_APPS_PIN_HASH_KEY = "protected_apps_pin_hash";
+    public static final String PROTECTED_APPS_WINDOW_MINUTES_KEY = "protected_apps_window_minutes";
+
     public static final Map<String, String> DEFAULTS = Map.ofEntries(
             Map.entry(ORGANIZATION_NAME_KEY, ""),
             Map.entry(DETECT_KEYWORDS_KEY, "power off,restart,emergency"),
@@ -74,7 +79,10 @@ public abstract class SettingsHelper {
             Map.entry(AUTO_KILL_DELAY_KEY, "60"),
             Map.entry(POWER_OFF_PREVENTION_ENABLED_KEY, "false"),
             Map.entry(THEFT_MODE_ENABLED_KEY, "false"),
-            Map.entry(FRP_ENABLED_KEY, "false")
+            Map.entry(FRP_ENABLED_KEY, "false"),
+            Map.entry(PROTECTED_APPS_ENABLED_KEY, "false"),
+            Map.entry(PROTECTED_APPS_PIN_HASH_KEY, ""),
+            Map.entry(PROTECTED_APPS_WINDOW_MINUTES_KEY, "10")
     );
 
     public static String getSetting(SharedPreferences sharedPreferences, String key) {

@@ -108,31 +108,13 @@ public class WatchMessageListenerService extends WearableListenerService {
         Log.i(TAG, "Last known wrist state: " + lastState + " (updated " +
             ((System.currentTimeMillis() - lastUpdateTime) / 1000) + "s ago)");
 
-        // If watch was ON wrist when it disconnected, this is suspicious!
+        // Worn-then-gone is treated like removal: grace timer, cancelled if the watch comes back worn.
         if (STATUS_WORN.equals(lastState)) {
-            Log.w(TAG, "CRITICAL: Watch was ON WRIST when connection lost!");
-            Log.w(TAG, "Assuming forcible removal - triggering theft mode!");
-
-            // Use the watch disconnect timeout for the countdown
-            int timeoutSeconds = SettingsHelper.parseInt(
-                SettingsHelper.getSetting(settingsPrefs, SettingsHelper.WATCH_DISCONNECT_TIMEOUT_KEY),
-                30
-            );
-
-            // Get activation delay
-            int activationDelaySeconds = SettingsHelper.parseInt(
-                SettingsHelper.getSetting(settingsPrefs, SettingsHelper.ACTIVATION_DELAY_KEY),
-                180
-            );
-
-            // Schedule theft mode after disconnect timeout + activation delay
-            long activationTime = System.currentTimeMillis() +
-                (timeoutSeconds * 1000L) + (activationDelaySeconds * 1000L);
-
-            PowerButtonReceiver.schedulePendingTheftMode(this, activationTime);
-            Log.i(TAG, "Theft mode scheduled: " + timeoutSeconds + "s disconnect timeout + " +
-                activationDelaySeconds + "s activation delay");
-
+            if (PowerButtonReceiver.isTheftModePending(this) || BluetoothWatchReceiver.isWristRemovalPending(this)) {
+                return;
+            }
+            Log.w(TAG, "Watch was on wrist when connection was lost; starting removal timeout");
+            BluetoothWatchReceiver.startWristRemovalTimer(this);
         } else if (STATUS_REMOVED.equals(lastState)) {
             Log.i(TAG, "Watch was already OFF wrist - no action needed");
         } else {

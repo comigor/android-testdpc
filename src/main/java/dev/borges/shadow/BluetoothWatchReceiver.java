@@ -94,7 +94,7 @@ public class BluetoothWatchReceiver extends BroadcastReceiver {
         if (action == null) return;
 
         BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-        if (device == null) return;
+        if (device == null || !context.getSystemService(UserManager.class).isUserUnlocked()) return;
 
         // Check if feature is enabled
         SharedPreferences settingsPrefs = SettingsHelper.getEncryptedSharedPreferences(context);
@@ -209,7 +209,7 @@ public class BluetoothWatchReceiver extends BroadcastReceiver {
 
             Log.i(TAG, "Theft mode scheduled to activate in " + (activationDelayMs / 1000) + " seconds");
         } else {
-            Log.d(TAG, "Timeout not yet reached (" + elapsedSeconds + "s < " + timeoutSeconds + "s)");
+            scheduleAlarm(context, disconnectTime + timeoutSeconds * 1000L);
         }
     }
 
@@ -345,7 +345,7 @@ public class BluetoothWatchReceiver extends BroadcastReceiver {
 
             Log.i(TAG, "Theft mode scheduled to activate in " + (activationDelayMs / 1000) + " seconds");
         } else {
-            Log.d(TAG, "Wrist removal timeout not yet reached (" + elapsedSeconds + "s < " + timeoutSeconds + "s)");
+            scheduleWristRemovalAlarm(context, removalTime + timeoutSeconds * 1000L);
         }
     }
 

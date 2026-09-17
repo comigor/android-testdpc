@@ -17,9 +17,11 @@ public class ProtectedAppsReceiver extends BroadcastReceiver {
         }
         String action = intent.getAction();
         Log.i(TAG, "onReceive " + action);
-        if (Intent.ACTION_SCREEN_OFF.equals(action) || ProtectedApps.ACTION_EXPIRE.equals(action)) {
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
             ProtectedApps.lock(context);
-        } else {
+        } else if (ProtectedApps.ACTION_EXPIRE.equals(action)) {
+            ProtectedApps.enforce(context);
+        } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             ProtectedApps.enforce(context);
         }
     }

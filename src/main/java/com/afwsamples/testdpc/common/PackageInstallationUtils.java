@@ -17,19 +17,14 @@
 package com.afwsamples.testdpc.common;
 
 import android.app.PendingIntent;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageInstaller;
-import android.os.Build;
-import android.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-
-import dev.borges.shadow.SettingsActivity;
 
 /** Utility class for various operations necessary to package installation. */
 public class PackageInstallationUtils {
@@ -39,54 +34,25 @@ public class PackageInstallationUtils {
   public static final String ACTION_DOWNLOAD_AND_INSTALL = "com.afwsamples.testdpc.DOWNLOAD_AND_INSTALL";
   private static final String ACTION_UNINSTALL_COMPLETE = "com.afwsamples.testdpc.UNINSTALL_COMPLETE";
 
-  public static boolean installPackage(Context context, InputStream in, String packageName)
-          throws IOException {
-    Log.d(TAG, "Will install apk (immutable)");
+  public static void installPackage(Context context, InputStream in, String packageName)
+      throws IOException {
     final PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
     final PackageInstaller.SessionParams params =
-            new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+        new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
     params.setAppPackageName(packageName);
-
-    // doesn't work on Pixel 9 Pro
     final int sessionId = packageInstaller.createSession(params);
-    final PackageInstaller.Session session = packageInstaller.openSession(sessionId);
-    final OutputStream out = session.openWrite("TestDPC", 0, -1);
-    final byte[] buffer = new byte[65536];
-    int c;
-    while ((c = in.read(buffer)) != -1) {
-      out.write(buffer, 0, c);
+    try (InputStream input = in;
+        PackageInstaller.Session session = packageInstaller.openSession(sessionId)) {
+      try (OutputStream out = session.openWrite("TestDPC", 0, -1)) {
+        final byte[] buffer = new byte[65536];
+        int c;
+        while ((c = input.read(buffer)) != -1) {
+          out.write(buffer, 0, c);
+        }
+        session.fsync(out);
+      }
+      session.commit(createInstallIntentSender(context, sessionId));
     }
-    session.fsync(out);
-    in.close();
-    out.close();
-    session.commit(createImmutableInstallIntentSender(context, sessionId));
-    Log.d(TAG, "Done trying immutable");
-    return true;
-  }
-
-  public static boolean installPackageMutable(Context context, InputStream in, String packageName)
-          throws IOException {
-    Log.d(TAG, "Will install apk (mutable)");
-    final PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
-    final PackageInstaller.SessionParams params =
-            new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-    params.setAppPackageName(packageName);
-
-    // doesn't work on Pixel 3
-    final int sessionId = packageInstaller.createSession(params);
-    final PackageInstaller.Session session = packageInstaller.openSession(sessionId);
-    final OutputStream out = session.openWrite("TestDPC", 0, -1);
-    final byte[] buffer = new byte[65536];
-    int c;
-    while ((c = in.read(buffer)) != -1) {
-      out.write(buffer, 0, c);
-    }
-    session.fsync(out);
-    in.close();
-    out.close();
-    session.commit(createMutableInstallIntentSender(context, sessionId));
-    Log.d(TAG, "Done trying mutable");
-    return true;
   }
 
   public static void uninstallPackage(Context context, String packageName) {
@@ -94,19 +60,11 @@ public class PackageInstallationUtils {
     packageInstaller.uninstall(packageName, createUninstallIntentSender(context, packageName));
   }
 
-  @SuppressWarnings("UnspecifiedImmutableFlag") // TODO(b/210723613): proper fix
-  private static IntentSender createMutableInstallIntentSender(Context context, int sessionId) {
-      Intent intent = new Intent(context, SettingsActivity.class);
-      intent.setAction(ACTION_INSTALL_COMPLETE);
-      int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE;
-      PendingIntent pendingIntent = PendingIntent.getBroadcast(context, sessionId, intent, flags);
-      return pendingIntent.getIntentSender();
-  }
-
-  private static IntentSender createImmutableInstallIntentSender(Context context, int sessionId) {
-    final PendingIntent pendingIntent =
-            PendingIntent.getBroadcast(context, sessionId, new Intent(ACTION_INSTALL_COMPLETE),
-                    PendingIntent.FLAG_IMMUTABLE);
+  // The installer fills in status extras, so the PendingIntent must be mutable.
+  private static IntentSender createInstallIntentSender(Context context, int sessionId) {
+    Intent intent = new Intent(context, InstallCompleteReceiver.class);
+    PendingIntent pendingIntent = PendingIntent.getBroadcast(context, sessionId, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
     return pendingIntent.getIntentSender();
   }
 

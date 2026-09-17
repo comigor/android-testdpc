@@ -13,7 +13,6 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 
-import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
@@ -100,50 +99,6 @@ public class DevicePasswordHelper {
         Intent intent = keyguardManager.createConfirmDeviceCredentialIntent(null, null);
         if (intent != null) {
             confirmCredentialLauncher.launch(intent);
-        }
-    }
-
-    public static void resetPasswordWithToken(
-            Context context,
-            DevicePolicyManager devicePolicyManager,
-            ComponentName adminComponentName,
-            String tokenString,
-            String password,
-            boolean requireEntry,
-            boolean doNotRequirePasswordOnBoot,
-            boolean doNotAllowOtherAdminsChange
-    ) {
-        byte[] token;
-        try {
-            token = Base64.decode(tokenString, Base64.DEFAULT);
-        } catch (IllegalArgumentException e) {
-            token = tokenString.getBytes(StandardCharsets.UTF_8);
-        }
-
-        int flags = 0;
-        flags |= requireEntry ? DevicePolicyManager.RESET_PASSWORD_REQUIRE_ENTRY : 0;
-        flags |= doNotRequirePasswordOnBoot ? DevicePolicyManager.RESET_PASSWORD_DO_NOT_ASK_CREDENTIALS_ON_BOOT : 0;
-        flags |= doNotAllowOtherAdminsChange ? DevicePolicyManager.RESET_PASSWORD_REQUIRE_ENTRY : 0;
-
-        if (token != null) {
-            boolean result = devicePolicyManager.resetPasswordWithToken(
-                    adminComponentName,
-                    password,
-                    token,
-                    flags
-            );
-            if (result) {
-                Toast.makeText(
-                        context,
-                        "Reset password with token succeed: " + password,
-                        Toast.LENGTH_SHORT
-                ).show();
-            } else {
-                Toast.makeText(context, "Reset password with token failed", Toast.LENGTH_SHORT)
-                        .show();
-            }
-        } else {
-            Toast.makeText(context, "Reset password no token", Toast.LENGTH_SHORT).show();
         }
     }
 

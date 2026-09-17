@@ -20,7 +20,6 @@ import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Handler;
@@ -34,7 +33,6 @@ import java.io.PrintWriter;
 import android.content.Context;
 import dev.borges.shadow.BluetoothWatchReceiver;
 import dev.borges.shadow.PowerButtonReceiver;
-import dev.borges.shadow.TheftModeActivity;
 
 /**
  * To allow DPC process to be persistent and foreground.
@@ -45,7 +43,6 @@ import dev.borges.shadow.TheftModeActivity;
 public class DeviceAdminService extends android.app.admin.DeviceAdminService {
 
   private static final String TAG = "DeviceAdminService";
-  private static final String PREF_THEFT_MODE_ACTIVATION_TIME = "theft_mode_activation_time";
   private static final long THEFT_MODE_CHECK_INTERVAL_MS = 1000; // Check every second
 
   private BroadcastReceiver mPackageChangedReceiver;
@@ -96,20 +93,7 @@ public class DeviceAdminService extends android.app.admin.DeviceAdminService {
   }
 
   private void checkAndActivateTheftMode() {
-    SharedPreferences prefs = getSharedPreferences("shadow_prefs", MODE_PRIVATE);
-    long activationTime = prefs.getLong(PREF_THEFT_MODE_ACTIVATION_TIME, 0);
-
-    if (activationTime > 0 && System.currentTimeMillis() >= activationTime) {
-      Log.i(TAG, "*** THEFT MODE ACTIVATION TIME REACHED (from DeviceAdminService) ***");
-
-      // Clear the activation time
-      prefs.edit().remove(PREF_THEFT_MODE_ACTIVATION_TIME).apply();
-
-      // Launch theft mode activity
-      Intent intent = new Intent(this, TheftModeActivity.class);
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-      startActivity(intent);
-    }
+    PowerButtonReceiver.checkPendingTheftMode(this);
   }
 
   /**

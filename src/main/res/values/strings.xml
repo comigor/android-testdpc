@@ -1318,4 +1318,15 @@
     <string name="credential_manager_policy_applied_toast">Policy has been applied</string>
     <string name="credential_manager_policy_title">Enter package name of Credential Provider</string>
 
+    <string name="shadow_unlock">Unlock Shadow</string>
+    <string name="shadow_create_password">Create Shadow password</string>
+    <string name="shadow_change_password">Change password</string>
+    <string name="shadow_save_password">Save password</string>
+    <string name="shadow_back_to_login">Back to login</string>
+    <string name="shadow_password">Shadow password</string>
+    <string name="shadow_new_password">New password</string>
+    <string name="shadow_confirm_password">Confirm new password</string>
+    <string name="shadow_use_biometric">Use biometric</string>
+    <string name="shadow_incorrect_password">Incorrect password</string>
+    <string name="shadow_biometric_failed">Biometric not recognized</string>
 </resources>

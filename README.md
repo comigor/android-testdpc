@@ -112,7 +112,7 @@ Replace the link used for `PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION` 
 *   Run the `adb` command:
 
     ```console
-    adb shell dpm set-device-owner dev.borges.shadow/.DeviceAdminReceiver
+    adb shell dpm set-device-owner dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminReceiver
     ```
 
 #### Profile Owner - Personal device (PO - BYOD)
@@ -127,7 +127,7 @@ Replace the link used for `PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION` 
 *   Run the `adb` command:
 
     ```console
-    adb shell dpm mark-profile-owner-on-organization-owned-device --user 10 com.afwsamples.testdpc/.DeviceAdminReceiver`
+    adb shell dpm mark-profile-owner-on-organization-owned-device --user 10 dev.borges.shadow/com.afwsamples.testdpc.DeviceAdminReceiver
     ```
 
 #### TestDPC as DM role holder

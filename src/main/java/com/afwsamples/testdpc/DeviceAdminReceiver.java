@@ -41,6 +41,7 @@ import com.afwsamples.testdpc.common.NotificationUtil;
 import com.afwsamples.testdpc.common.Util;
 import com.afwsamples.testdpc.provision.PostProvisioningTask;
 import dev.borges.shadow.PowerButtonReceiver;
+import dev.borges.shadow.TheftModeState;
 import dev.borges.shadow.util.SettingsHelper;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -135,19 +136,22 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
 
     try {
         List<SecurityEvent> logs = dpm.retrieveSecurityLogs(admin);
-        if (logs != null) {
-            for (SecurityEvent event : logs) {
-                if (event.getTag() == android.app.admin.SecurityLog.TAG_KEYGUARD_DISMISS_AUTH_ATTEMPT) {
-                    int authResult = (int) event.getData();
-                    if (authResult == 0) {
-                        executeDecoySwitch(context);
-                        logSecurityEvent(context, event);
-                    }
-                }
+        if (logs == null) {
+            return;
+        }
+        for (SecurityEvent event : logs) {
+            if (event.getTag() != android.app.admin.SecurityLog.TAG_KEYGUARD_DISMISS_AUTH_ATTEMPT) {
+                continue;
+            }
+            // Payload is Object[]{int result, int method}; result 0 means failure.
+            Object[] data = (Object[]) event.getData();
+            if (data.length > 0 && Integer.valueOf(0).equals(data[0])) {
+                executeDecoySwitch(context);
+                logSecurityEvent(context, event);
             }
         }
-    } catch (SecurityException e) {
-        Log.e(TAG, "Error retrieving security logs", e);
+    } catch (SecurityException | ClassCastException e) {
+        Log.e(TAG, "Error processing security logs", e);
     }
   }
 
@@ -402,17 +406,17 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
   @TargetApi(VERSION_CODES.O)
   @Override
   public void onPasswordFailed(Context context, Intent intent, UserHandle user) {
-      if (user.equals(UserHandle.getUserHandleForUid(0))) {
-          // Schedule theft mode countdown (same as power button trigger)
-          android.content.SharedPreferences settingsPrefs = SettingsHelper.getEncryptedSharedPreferences(context);
-          long delayMs = Integer.parseInt(SettingsHelper.getSetting(settingsPrefs, SettingsHelper.ACTIVATION_DELAY_KEY)) * 1000L;
-          long activationTime = System.currentTimeMillis() + delayMs;
-          PowerButtonReceiver.schedulePendingTheftMode(context, activationTime);
-          Log.i(TAG, "Wrong PIN detected - theft mode scheduled in " + (delayMs/1000) + " seconds");
-
-          // Also immediately switch to decoy profile
-          executeDecoySwitch(context);
+      if (!user.equals(UserHandle.getUserHandleForUid(0))) {
+          return;
       }
+      // Encrypted settings live in credential-encrypted storage; unavailable before first unlock.
+      if (context.getSystemService(UserManager.class).isUserUnlocked()
+          && TheftModeState.isTriggerEnabled(context)) {
+          long delayMs = SettingsHelper.parseInt(SettingsHelper.getSetting(
+              SettingsHelper.getEncryptedSharedPreferences(context), SettingsHelper.ACTIVATION_DELAY_KEY), 180) * 1000L;
+          PowerButtonReceiver.schedulePendingTheftMode(context, System.currentTimeMillis() + delayMs);
+      }
+      executeDecoySwitch(context);
   }
 
   @Deprecated

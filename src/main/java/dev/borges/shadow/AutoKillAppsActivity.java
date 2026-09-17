@@ -29,26 +29,9 @@ import java.util.Set;
 
 import dev.borges.shadow.util.SettingsHelper;
 
-public class AutoKillAppsActivity extends AppCompatActivity {
+public class AutoKillAppsActivity extends AuthenticatedActivity {
     private static final String TAG = "AutoKillAppsActivity";
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        android.util.Log.i("[DEBUG-nav]", "AutoKillAppsActivity.onResume: isAuthenticated=" + SettingsActivity.isAuthenticated());
-        if (!SettingsActivity.isAuthenticated()) {
-            finish();
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        android.util.Log.i("[DEBUG-nav]", "AutoKillAppsActivity.onPause: isFinishing=" + isFinishing());
-        if (!isFinishing()) {
-            SettingsActivity.clearAuthentication();
-        }
-    }
     private static final String PREF_APPS_TO_AUTO_KILL = "apps_to_auto_kill";
 
     private PackageManager pm;
@@ -61,8 +44,7 @@ public class AutoKillAppsActivity extends AppCompatActivity {
     private AppListAdapter adapter;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void onAuthenticatedCreate(Bundle savedInstanceState) {
         setContentView(R.layout.activity_auto_kill_apps);
 
         pm = getPackageManager();

@@ -88,12 +88,7 @@ echo "    Copied to: src/main/assets/wear-release.apk"
 echo "[4/5] Building Phone release APK..."
 ./gradlew assembleRelease -q
 
-# Check phone APK was built
-PHONE_APK="build2/outputs/apk/release/Test DPC-release.apk"
-if [ ! -f "$PHONE_APK" ]; then
-    # Try alternative name
-    PHONE_APK=$(find build2/outputs/apk/release -name "*.apk" -type f 2>/dev/null | head -1)
-fi
+PHONE_APK=$(find build2/outputs/apk/release -name "*.apk" -type f | head -1)
 
 if [ -z "$PHONE_APK" ] || [ ! -f "$PHONE_APK" ]; then
     echo "ERROR: Phone APK not found"

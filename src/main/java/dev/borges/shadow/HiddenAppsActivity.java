@@ -34,26 +34,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class HiddenAppsActivity extends AppCompatActivity {
+public class HiddenAppsActivity extends AuthenticatedActivity {
     private static final String TAG = "HiddenAppsActivity";
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        Log.i("[DEBUG-nav]", "HiddenAppsActivity.onResume: isAuthenticated=" + SettingsActivity.isAuthenticated());
-        if (!SettingsActivity.isAuthenticated()) {
-            finish();
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        Log.i("[DEBUG-nav]", "HiddenAppsActivity.onPause: isFinishing=" + isFinishing());
-        if (!isFinishing()) {
-            SettingsActivity.clearAuthentication();
-        }
-    }
     private static final String PREF_APPS_TO_HIDE = "apps_to_hide_on_theft";
     private static final String PREF_CURRENTLY_HIDDEN = "currently_hidden_apps";
 
@@ -73,8 +56,7 @@ public class HiddenAppsActivity extends AppCompatActivity {
     private Set<String> currentlyHiddenSet = new HashSet<>();
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void onAuthenticatedCreate(Bundle savedInstanceState) {
         setContentView(R.layout.activity_hidden_apps);
 
         dpm = getSystemService(DevicePolicyManager.class);
@@ -181,7 +163,7 @@ public class HiddenAppsActivity extends AppCompatActivity {
     }
 
     private void unhideApp(String packageName) {
-        if (ProtectedApps.isLocked(this, packageName)) {
+        if (ProtectedApps.mustStayHidden(this, packageName)) {
             Toast.makeText(this, "Protected app: unlock via Protected Apps PIN", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -254,7 +236,7 @@ public class HiddenAppsActivity extends AppCompatActivity {
         Set<String> currentlyHidden = new HashSet<>(prefs.getStringSet(PREF_CURRENTLY_HIDDEN, new HashSet<>()));
 
         for (String packageName : currentlyHidden) {
-            if (ProtectedApps.isLocked(context, packageName)) {
+            if (ProtectedApps.mustStayHidden(context, packageName)) {
                 Log.i(TAG, "Keeping protected app hidden: " + packageName);
                 continue;
             }

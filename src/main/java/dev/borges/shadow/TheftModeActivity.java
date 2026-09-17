@@ -56,6 +56,9 @@ public class TheftModeActivity extends Activity {
                 Toast.makeText(context, "This app is not the device owner.", Toast.LENGTH_SHORT).show();
                 return;
             }
+            TheftModeState.setActive(context, true);
+            ProtectedApps.lock(context);
+            ProtectedApps.setLauncherIconVisible(context, false);
 
             final ComponentName mAdminComponentName = DeviceAdminReceiver.getComponentName(context);
             final DevicePolicyManager mDevicePolicyManager = context.getSystemService(DevicePolicyManager.class);
@@ -81,8 +84,6 @@ public class TheftModeActivity extends Activity {
             // Hide selected apps (only on user 0)
             Log.i(TAG, "Hiding selected apps");
             HiddenAppsActivity.hideSelectedApps(context);
-            ProtectedApps.lock(context);
-            ProtectedApps.setLauncherIconVisible(context, false);
 
             Log.i(TAG, "Starting (home) activity");
             Intent launchIntent = Util.getHomeIntent();
@@ -97,6 +98,7 @@ public class TheftModeActivity extends Activity {
         try {
             Log.i(TAG, "Stopping theft mode...");
             Intent launchIntent = Util.getHomeIntent();
+            TheftModeState.requestStop();
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             launchIntent.putExtra(TheftModeActivity.STOP_THEFT_MODE, true);
             context.startActivity(launchIntent);
@@ -121,9 +123,6 @@ public class TheftModeActivity extends Activity {
         Log.i(TAG, "Resetting user restrictions");
         setDefaultKioskPolicies(false);
 
-        Log.i(TAG, "Unhiding all hidden apps");
-        HiddenAppsActivity.unhideAllApps(this);
-        ProtectedApps.setLauncherIconVisible(this, ProtectedApps.isEnabled(this));
 
         Log.i(TAG, "Clearing home/launcher activity");
         final ComponentName customLauncher = new ComponentName(getPackageName(), TheftModeActivity.class.getName());
@@ -132,6 +131,10 @@ public class TheftModeActivity extends Activity {
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP
         );
+        TheftModeState.setActive(this, false);
+        ProtectedApps.lock(this);
+        HiddenAppsActivity.unhideAllApps(this);
+        ProtectedApps.setLauncherIconVisible(this, ProtectedApps.isEnabled(this));
 
         Log.i(TAG, "Starting (home) activity");
         Intent launchIntent = Util.getHomeIntent();
@@ -314,7 +317,8 @@ public class TheftModeActivity extends Activity {
 
     @Override
     protected void onNewIntent(Intent intent) {
-        if (intent.getBooleanExtra(STOP_THEFT_MODE, false)) {
+        super.onNewIntent(intent);
+        if (intent.getBooleanExtra(STOP_THEFT_MODE, false) && TheftModeState.consumeStopRequest()) {
             onBackdoorClicked();
         }
     }
@@ -340,13 +344,57 @@ public class TheftModeActivity extends Activity {
         });
 
         mPasswordEditText.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_DONE &&
-                    PasswordHelper.checkPassword(this, mPasswordEditText.getText().toString())) {
-                onBackdoorClicked();
-                return true;
+            if (actionId != EditorInfo.IME_ACTION_DONE) {
+                return false;
             }
-            return false;
+            submitExitPassword(mPasswordEditText.getText().toString());
+            return true;
         });
+    }
+
+    private static final long[] EXIT_BACKOFF_MS = {30_000L, 60_000L, 300_000L, 900_000L, 3_600_000L};
+    private static int exitFailures;
+    private static long exitBlockedUntil;
+    private boolean exitCheckInFlight;
+
+    private void submitExitPassword(String password) {
+        if (exitCheckInFlight || password.isEmpty()) {
+            return;
+        }
+        if (android.os.SystemClock.elapsedRealtime() < exitBlockedUntil) {
+            hidePasswordInput();
+            return;
+        }
+        exitCheckInFlight = true;
+        mPasswordEditText.setEnabled(false);
+        new Thread(() -> {
+            boolean ok = PasswordHelper.checkPassword(this, password);
+            runOnUiThread(() -> {
+                exitCheckInFlight = false;
+                mPasswordEditText.setEnabled(true);
+                mPasswordEditText.setText("");
+                if (ok) {
+                    exitFailures = 0;
+                    onBackdoorClicked();
+                    return;
+                }
+                exitFailures++;
+                if (exitFailures >= 5) {
+                    exitBlockedUntil = android.os.SystemClock.elapsedRealtime()
+                        + EXIT_BACKOFF_MS[Math.min(exitFailures - 5, EXIT_BACKOFF_MS.length - 1)];
+                }
+                hidePasswordInput();
+            });
+        }).start();
+    }
+
+    private void hidePasswordInput() {
+        passwordInputVisible = false;
+        mPasswordEditText.setVisibility(View.GONE);
+        InputMethodManager imm = getSystemService(InputMethodManager.class);
+        imm.hideSoftInputFromWindow(mPasswordEditText.getWindowToken(), 0);
+        setUserRestriction(android.os.UserManager.DISALLOW_CREATE_WINDOWS, true);
+        onWindowFocusChanged(true);
     }
 
     private class GestureListener extends GestureDetector.SimpleOnGestureListener {

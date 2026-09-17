@@ -13,6 +13,7 @@ import java.util.Map;
 
 public abstract class SettingsHelper {
     private static final String TAG = "SettingsHelper";
+    private static SharedPreferences encryptedPreferences;
 
     public static final String ORGANIZATION_NAME_KEY = "organization_name";
     public static final String DETECT_KEYWORDS_KEY = "detect_keywords";
@@ -77,8 +78,8 @@ public abstract class SettingsHelper {
             Map.entry(WIZARD_COMPLETED_KEY, "false"),
             Map.entry(AUTO_KILL_ENABLED_KEY, "false"),
             Map.entry(AUTO_KILL_DELAY_KEY, "60"),
-            Map.entry(POWER_OFF_PREVENTION_ENABLED_KEY, "false"),
-            Map.entry(THEFT_MODE_ENABLED_KEY, "false"),
+            Map.entry(POWER_OFF_PREVENTION_ENABLED_KEY, "true"),
+            Map.entry(THEFT_MODE_ENABLED_KEY, "true"),
             Map.entry(FRP_ENABLED_KEY, "false"),
             Map.entry(PROTECTED_APPS_ENABLED_KEY, "false"),
             Map.entry(PROTECTED_APPS_PIN_HASH_KEY, ""),
@@ -95,20 +96,21 @@ public abstract class SettingsHelper {
             sharedPreferences.edit().putString(key, null).apply();
         } else {
             sharedPreferences.edit().putString(key, value).apply();
-            Log.d(TAG, "setting " + key + " to " + value);
         }
     }
 
-    public static SharedPreferences getEncryptedSharedPreferences(Context context) {
+    public static synchronized SharedPreferences getEncryptedSharedPreferences(Context context) {
+        if (encryptedPreferences != null) return encryptedPreferences;
         try {
             String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-            return EncryptedSharedPreferences.create(
+            encryptedPreferences = EncryptedSharedPreferences.create(
                     "shadow_settings",
                     masterKeyAlias,
-                    context,
+                    context.getApplicationContext(),
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             );
+            return encryptedPreferences;
         } catch (GeneralSecurityException | IOException e) {
             Log.e(TAG, "Error creating EncryptedSharedPreferences: " + e.getMessage());
             throw new RuntimeException("Failed to initialize secure preferences", e);

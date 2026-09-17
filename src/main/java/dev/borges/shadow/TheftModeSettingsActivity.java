@@ -42,6 +42,6 @@ public class TheftModeSettingsActivity extends SubSettingsActivity {
 
         // Hidden apps button
         addClickableItem("Apps to hide on theft mode",
-            () -> startChildActivity(new Intent(this, HiddenAppsActivity.class)));
+            () -> startActivity(new Intent(this, HiddenAppsActivity.class)));
     }
 }

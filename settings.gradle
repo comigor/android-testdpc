@@ -22,7 +22,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Shadow"
-include ':app'
 include ':wear'
 
 include ':setupdesign'

@@ -20,15 +20,15 @@ public class WatchProtectionActivity extends SubSettingsActivity {
     private WatchAppInstaller watchAppInstaller;
 
     @Override
-    protected void onCreate(android.os.Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void onAuthenticatedCreate(android.os.Bundle savedInstanceState) {
+        super.onAuthenticatedCreate(savedInstanceState);
         watchAppInstaller = new WatchAppInstaller(this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        populateSettings();
+        if (AdminSession.isAuthenticated() && settingsContainer != null) populateSettings();
     }
 
     @Override

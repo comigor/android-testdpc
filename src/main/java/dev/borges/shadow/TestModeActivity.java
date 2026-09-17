@@ -21,7 +21,7 @@ import dev.borges.shadow.util.SettingsHelper;
 /**
  * Test mode activity to verify all protection features work correctly.
  */
-public class TestModeActivity extends AppCompatActivity {
+public class TestModeActivity extends AuthenticatedActivity {
 
     private static final String TAG = "TestModeActivity";
     private SharedPreferences settingsPrefs;
@@ -29,8 +29,7 @@ public class TestModeActivity extends AppCompatActivity {
     private Handler handler = new Handler(Looper.getMainLooper());
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void onAuthenticatedCreate(Bundle savedInstanceState) {
 
         settingsPrefs = SettingsHelper.getEncryptedSharedPreferences(this);
         shadowPrefs = getSharedPreferences("shadow_prefs", MODE_PRIVATE);

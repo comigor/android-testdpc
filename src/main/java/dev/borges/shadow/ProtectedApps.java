@@ -1,6 +1,7 @@
 package dev.borges.shadow;
 
 import android.app.AlarmManager;
+import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
@@ -8,231 +9,229 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.SystemClock;
 import android.os.UserManager;
-import android.util.Base64;
+import android.provider.Settings;
 import android.util.Log;
-
 import com.afwsamples.testdpc.DeviceAdminReceiver;
-
-import java.security.SecureRandom;
-import java.security.spec.KeySpec;
-import java.util.Arrays;
+import dev.borges.shadow.util.PasswordHash;
+import dev.borges.shadow.util.SettingsHelper;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
-import dev.borges.shadow.util.SettingsHelper;
-
-/**
- * PIN-gated temporary access to a set of apps hidden via setApplicationHidden.
- * Best-effort availability control: app data stays in the same user.
- */
 public final class ProtectedApps {
     private static final String TAG = "ProtectedApps";
-
-    private static final String PREFS = "shadow_prefs";
     private static final String PREF_PACKAGES = "protected_apps";
     private static final String PREF_UNLOCK_UNTIL = "protected_apps_unlock_until";
+    private static final String PREF_UNLOCK_ELAPSED = "protected_apps_unlock_elapsed";
+    private static final String PREF_UNLOCK_BOOT = "protected_apps_unlock_boot";
     private static final String PREF_FAILURES = "protected_apps_pin_failures";
     private static final String PREF_BACKOFF_UNTIL = "protected_apps_backoff_until";
-
-    public static final String ACTION_EXPIRE = "dev.borges.shadow.PROTECTED_APPS_EXPIRE";
-
-    private static final int FREE_ATTEMPTS = 5;
+    private static final String PREF_BACKOFF_ELAPSED = "protected_apps_backoff_elapsed";
+    private static final String PREF_BACKOFF_BOOT = "protected_apps_backoff_boot";
     private static final long[] BACKOFF_MS = {30_000L, 60_000L, 300_000L, 900_000L, 3_600_000L};
-
-    private static final int PBKDF2_ITERATIONS = 65536;
-    private static final int PBKDF2_KEY_BITS = 256;
-    private static final int SALT_BYTES = 16;
+    public static final String ACTION_EXPIRE = "dev.borges.shadow.PROTECTED_APPS_EXPIRE";
 
     private ProtectedApps() {}
 
-    // ============ Configuration ============
-
     public static Set<String> getPackages(Context context) {
-        return new HashSet<>(prefs(context).getStringSet(PREF_PACKAGES, new HashSet<>()));
+        return new HashSet<>(prefs(context).getStringSet(PREF_PACKAGES, Collections.emptySet()));
     }
 
     public static void setPackages(Context context, Set<String> packages) {
+        if (packages.contains(context.getPackageName())) {
+            throw new IllegalArgumentException("Shadow cannot hide itself");
+        }
         prefs(context).edit().putStringSet(PREF_PACKAGES, new HashSet<>(packages)).apply();
     }
 
     public static boolean isEnabled(Context context) {
-        return "true".equals(SettingsHelper.getSetting(
-            SettingsHelper.getEncryptedSharedPreferences(context), SettingsHelper.PROTECTED_APPS_ENABLED_KEY));
+        return "true".equals(SettingsHelper.getSetting(secure(context), SettingsHelper.PROTECTED_APPS_ENABLED_KEY));
     }
 
     public static boolean isPinSet(Context context) {
-        String hash = SettingsHelper.getSetting(
-            SettingsHelper.getEncryptedSharedPreferences(context), SettingsHelper.PROTECTED_APPS_PIN_HASH_KEY);
-        return hash != null && !hash.isEmpty();
+        String hash = SettingsHelper.getSetting(secure(context), SettingsHelper.PROTECTED_APPS_PIN_HASH_KEY);
+        if (hash == null || hash.isEmpty()) return false;
+        PasswordHash.validate(hash);
+        return true;
     }
 
     public static void setPin(Context context, String pin) {
-        byte[] salt = new byte[SALT_BYTES];
-        new SecureRandom().nextBytes(salt);
-        String encoded = Base64.encodeToString(salt, Base64.NO_WRAP) + ":"
-            + Base64.encodeToString(derive(pin, salt), Base64.NO_WRAP);
-        SettingsHelper.setSetting(SettingsHelper.getEncryptedSharedPreferences(context),
-            SettingsHelper.PROTECTED_APPS_PIN_HASH_KEY, encoded);
-        resetFailures(context);
+        if (!pin.matches("[0-9]{4,}")) {
+            throw new IllegalArgumentException("PIN must contain at least four digits");
+        }
+        if (!secure(context).edit().putString(SettingsHelper.PROTECTED_APPS_PIN_HASH_KEY, PasswordHash.create(pin))
+            .remove(PREF_FAILURES).remove(PREF_BACKOFF_UNTIL).remove(PREF_BACKOFF_ELAPSED).commit()) {
+            throw new IllegalStateException("Could not save PIN");
+        }
+        clearLegacyFailures(context);
+        lock(context);
     }
 
     public static int getWindowMinutes(Context context) {
-        return SettingsHelper.parseInt(SettingsHelper.getSetting(
-            SettingsHelper.getEncryptedSharedPreferences(context), SettingsHelper.PROTECTED_APPS_WINDOW_MINUTES_KEY), 10);
+        int minutes = Integer.parseInt(SettingsHelper.getSetting(secure(context), SettingsHelper.PROTECTED_APPS_WINDOW_MINUTES_KEY));
+        if (minutes < 1) throw new IllegalStateException("Access window must be positive");
+        return minutes;
     }
 
-    // ============ PIN verification ============
+    public static void setWindowMinutes(Context context, String value) {
+        int minutes = Integer.parseInt(value.trim());
+        if (minutes < 1) throw new IllegalArgumentException("Enter a positive number of minutes");
+        SettingsHelper.setSetting(secure(context), SettingsHelper.PROTECTED_APPS_WINDOW_MINUTES_KEY, String.valueOf(minutes));
+    }
 
-    /** Milliseconds until another attempt is allowed; 0 when not throttled. */
     public static long getBackoffRemainingMs(Context context) {
-        return Math.max(0L, prefs(context).getLong(PREF_BACKOFF_UNTIL, 0L) - System.currentTimeMillis());
-    }
-
-    public static boolean verifyPin(Context context, String pin) {
-        if (getBackoffRemainingMs(context) > 0) {
-            return false;
+        SharedPreferences state = throttle(context);
+        if (state.getInt(PREF_BACKOFF_BOOT, -1) == bootCount(context)) {
+            return Math.max(0, state.getLong(PREF_BACKOFF_ELAPSED, 0) - SystemClock.elapsedRealtime());
         }
-        String stored = SettingsHelper.getSetting(
-            SettingsHelper.getEncryptedSharedPreferences(context), SettingsHelper.PROTECTED_APPS_PIN_HASH_KEY);
-        String[] parts = stored == null ? new String[0] : stored.split(":");
-        boolean ok = parts.length == 2
-            && Arrays.equals(derive(pin, Base64.decode(parts[0], Base64.NO_WRAP)), Base64.decode(parts[1], Base64.NO_WRAP));
-        if (ok) {
-            resetFailures(context);
-        } else {
-            recordFailure(context);
+        long remaining = Math.max(0, Math.min(BACKOFF_MS[BACKOFF_MS.length - 1],
+            state.getLong(PREF_BACKOFF_UNTIL, 0) - System.currentTimeMillis()));
+        state.edit().putInt(PREF_BACKOFF_BOOT, bootCount(context))
+            .putLong(PREF_BACKOFF_ELAPSED, SystemClock.elapsedRealtime() + remaining).apply();
+        return remaining;
+    }
+
+    public static synchronized boolean verifyPin(Context context, String pin) {
+        if (getBackoffRemainingMs(context) > 0) return false;
+        String hash = SettingsHelper.getSetting(secure(context), SettingsHelper.PROTECTED_APPS_PIN_HASH_KEY);
+        if (hash == null || hash.isEmpty()) return false;
+        SharedPreferences state = throttle(context);
+        if (PasswordHash.matches(pin, hash)) {
+            state.edit().remove(PREF_FAILURES).remove(PREF_BACKOFF_UNTIL)
+                .remove(PREF_BACKOFF_ELAPSED).apply();
+            return true;
         }
-        return ok;
-    }
-
-    private static void recordFailure(Context context) {
-        SharedPreferences prefs = prefs(context);
-        int failures = prefs.getInt(PREF_FAILURES, 0) + 1;
-        SharedPreferences.Editor editor = prefs.edit().putInt(PREF_FAILURES, failures);
-        if (failures >= FREE_ATTEMPTS) {
-            long backoff = BACKOFF_MS[Math.min(failures - FREE_ATTEMPTS, BACKOFF_MS.length - 1)];
-            editor.putLong(PREF_BACKOFF_UNTIL, System.currentTimeMillis() + backoff);
-            Log.w(TAG, "PIN failure #" + failures + ", backing off " + backoff / 1000 + "s");
+        int failures = Math.min(9, state.getInt(PREF_FAILURES, 0) + 1);
+        SharedPreferences.Editor editor = state.edit().putInt(PREF_FAILURES, failures);
+        if (failures >= 5) {
+            long delay = BACKOFF_MS[failures - 5];
+            editor.putLong(PREF_BACKOFF_UNTIL, System.currentTimeMillis() + delay)
+                .putLong(PREF_BACKOFF_ELAPSED, SystemClock.elapsedRealtime() + delay)
+                .putInt(PREF_BACKOFF_BOOT, bootCount(context));
         }
-        editor.apply();
+        if (!editor.commit()) throw new IllegalStateException("Could not persist PIN lockout");
+        return false;
     }
 
-    private static void resetFailures(Context context) {
-        prefs(context).edit().remove(PREF_FAILURES).remove(PREF_BACKOFF_UNTIL).apply();
-    }
-
-    private static byte[] derive(String pin, byte[] salt) {
-        try {
-            KeySpec spec = new PBEKeySpec(pin.toCharArray(), salt, PBKDF2_ITERATIONS, PBKDF2_KEY_BITS);
-            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
-        } catch (Exception e) {
-            throw new IllegalStateException("PBKDF2 unavailable", e);
-        }
-    }
-
-    // ============ Reveal / lock state ============
-
-    /** True while an access window is open. */
     public static boolean isUnlocked(Context context) {
-        return prefs(context).getLong(PREF_UNLOCK_UNTIL, 0L) > System.currentTimeMillis();
+        SharedPreferences state = prefs(context);
+        return state.getInt(PREF_UNLOCK_BOOT, -1) == bootCount(context)
+            && state.getLong(PREF_UNLOCK_ELAPSED, 0) > SystemClock.elapsedRealtime()
+            && !TheftModeState.isActive(context);
     }
 
-    public static long getUnlockUntil(Context context) {
-        return prefs(context).getLong(PREF_UNLOCK_UNTIL, 0L);
+    public static long getRemainingWindowMs(Context context) {
+        return isUnlocked(context) ? Math.max(0, prefs(context).getLong(PREF_UNLOCK_ELAPSED, 0)
+            - SystemClock.elapsedRealtime()) : 0;
     }
 
-    /** True when this package must stay hidden right now. */
     public static boolean isLocked(Context context, String packageName) {
         return isEnabled(context) && !isUnlocked(context) && getPackages(context).contains(packageName);
     }
 
+    public static boolean mustStayHidden(Context context, String packageName) {
+        return isLocked(context, packageName)
+            || (TheftModeState.isActive(context) && HiddenAppsActivity.getAppsToHide(context).contains(packageName));
+    }
+
+    public static boolean canReveal(Context context) {
+        return onOwnerUser(context) && isEnabled(context) && isPinSet(context)
+            && !TheftModeState.isActive(context)
+            && !context.getSystemService(KeyguardManager.class).isKeyguardLocked();
+    }
+
     public static void reveal(Context context) {
-        if (!onOwnerUser(context) || PowerButtonReceiver.isTheftModePending(context)) {
-            Log.w(TAG, "reveal refused: not owner user or theft mode pending");
-            return;
+        if (!canReveal(context)) throw new IllegalStateException("Protected apps are locked by device policy");
+        long duration = getWindowMinutes(context) * 60_000L;
+        long deadline = SystemClock.elapsedRealtime() + duration;
+        // Arm expiry before exposing apps; an inexact fallback cannot enforce the access window.
+        scheduleExpiry(context, deadline);
+        prefs(context).edit().putLong(PREF_UNLOCK_UNTIL, System.currentTimeMillis() + duration)
+            .putLong(PREF_UNLOCK_ELAPSED, deadline).putInt(PREF_UNLOCK_BOOT, bootCount(context)).apply();
+        if (!setHidden(context, getPackages(context), false)) {
+            lock(context);
+            throw new IllegalStateException("Could not reveal every protected app");
         }
-        long until = System.currentTimeMillis() + getWindowMinutes(context) * 60_000L;
-        prefs(context).edit().putLong(PREF_UNLOCK_UNTIL, until).apply();
-        setHidden(context, getPackages(context), false);
-        scheduleExpiry(context, until);
-        Log.i(TAG, "Revealed protected apps until " + until);
     }
 
     public static void lock(Context context) {
-        prefs(context).edit().remove(PREF_UNLOCK_UNTIL).apply();
+        prefs(context).edit().remove(PREF_UNLOCK_UNTIL).remove(PREF_UNLOCK_ELAPSED)
+            .remove(PREF_UNLOCK_BOOT).apply();
         cancelExpiry(context);
-        if (isEnabled(context) && onOwnerUser(context)) {
+        if (onOwnerUser(context) && isEnabled(context)) {
             setHidden(context, getPackages(context), true);
         }
-        Log.i(TAG, "Locked protected apps");
     }
 
-    /** Feature turned off: drop any window and make the apps visible again. */
     public static void disable(Context context) {
-        prefs(context).edit().remove(PREF_UNLOCK_UNTIL).apply();
+        prefs(context).edit().remove(PREF_UNLOCK_UNTIL).remove(PREF_UNLOCK_ELAPSED)
+            .remove(PREF_UNLOCK_BOOT).apply();
         cancelExpiry(context);
         if (onOwnerUser(context)) {
-            setHidden(context, getPackages(context), false);
-        }
-    }
-
-    /** Re-hide if the window is over; keeps the alarm honest after reboot or missed ticks. */
-    public static void enforce(Context context) {
-        if (!isEnabled(context) || !onOwnerUser(context)) {
-            return;
-        }
-        if (isUnlocked(context)) {
-            scheduleExpiry(context, getUnlockUntil(context));
-        } else {
-            lock(context);
-        }
-    }
-
-    /** Called when a package is added to or removed from the protected set. */
-    public static void applyMembership(Context context, String packageName, boolean protectedNow) {
-        if (!onOwnerUser(context)) {
-            return;
-        }
-        boolean hide = protectedNow && isEnabled(context) && !isUnlocked(context);
-        setHidden(context, Set.of(packageName), hide);
-    }
-
-    public static void setLauncherIconVisible(Context context, boolean visible) {
-        ComponentName vault = new ComponentName(context, ProtectedAppsActivity.class);
-        context.getPackageManager().setComponentEnabledSetting(vault,
-            visible ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.DONT_KILL_APP);
-    }
-
-    private static void setHidden(Context context, Set<String> packages, boolean hidden) {
-        DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
-        ComponentName admin = new ComponentName(context, DeviceAdminReceiver.class);
-        for (String pkg : packages) {
-            try {
-                dpm.setApplicationHidden(admin, pkg, hidden);
-            } catch (Exception e) {
-                Log.e(TAG, "setApplicationHidden(" + pkg + ", " + hidden + ") failed", e);
+            for (String pkg : getPackages(context)) {
+                boolean theftHidden = TheftModeState.isActive(context) && HiddenAppsActivity.getAppsToHide(context).contains(pkg);
+                setHidden(context, Collections.singleton(pkg), theftHidden);
             }
         }
     }
 
-    private static boolean onOwnerUser(Context context) {
-        DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
-        return context.getSystemService(UserManager.class).isSystemUser()
-            && dpm.isDeviceOwnerApp(context.getPackageName());
+    public static void enforce(Context context) {
+        if (!isEnabled(context) || !onOwnerUser(context)) return;
+        if (isUnlocked(context) && !context.getSystemService(KeyguardManager.class).isKeyguardLocked()) {
+            try {
+                scheduleExpiry(context, prefs(context).getLong(PREF_UNLOCK_ELAPSED, 0));
+            } catch (SecurityException e) {
+                lock(context);
+            }
+        } else {
+            lock(context);
+        }
+        setLauncherIconVisible(context, true);
     }
 
-    private static void scheduleExpiry(Context context, long atMillis) {
-        AlarmManager am = context.getSystemService(AlarmManager.class);
-        try {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMillis, expiryIntent(context));
-        } catch (SecurityException e) {
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMillis, expiryIntent(context));
+    public static void applyMembership(Context context, String packageName, boolean protectedNow) {
+        if (!onOwnerUser(context)) return;
+        setHidden(context, Collections.singleton(packageName), mustStayHidden(context, packageName));
+    }
+
+    public static void setLauncherIconVisible(Context context, boolean visible) {
+        context.getPackageManager().setComponentEnabledSetting(new ComponentName(context, ProtectedAppsActivity.class),
+            visible && !TheftModeState.isActive(context) ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                : PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+    }
+
+    private static boolean setHidden(Context context, Set<String> packages, boolean hidden) {
+        DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
+        ComponentName admin = new ComponentName(context, DeviceAdminReceiver.class);
+        boolean success = true;
+        for (String pkg : packages) {
+            try {
+                if (!dpm.setApplicationHidden(admin, pkg, hidden)) {
+                    success = false;
+                    Log.e(TAG, "Device policy refused package visibility change: " + pkg);
+                }
+            } catch (RuntimeException e) {
+                success = false;
+                Log.e(TAG, "Package visibility change failed: " + pkg, e);
+            }
         }
+        return success;
+    }
+
+    private static boolean onOwnerUser(Context context) {
+        return context.getSystemService(UserManager.class).isSystemUser()
+            && context.getSystemService(DevicePolicyManager.class).isDeviceOwnerApp(context.getPackageName());
+    }
+
+    private static void scheduleExpiry(Context context, long elapsedDeadline) {
+        AlarmManager alarm = context.getSystemService(AlarmManager.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarm.canScheduleExactAlarms()) {
+            throw new SecurityException("Exact alarms must be enabled before revealing protected apps");
+        }
+        alarm.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedDeadline, expiryIntent(context));
     }
 
     private static void cancelExpiry(Context context) {
@@ -240,12 +239,36 @@ public final class ProtectedApps {
     }
 
     private static PendingIntent expiryIntent(Context context) {
-        Intent intent = new Intent(context, ProtectedAppsReceiver.class).setAction(ACTION_EXPIRE);
-        return PendingIntent.getBroadcast(context, 0, intent,
+        return PendingIntent.getBroadcast(context, 0,
+            new Intent(context, ProtectedAppsReceiver.class).setAction(ACTION_EXPIRE),
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
+    private static int bootCount(Context context) {
+        return Settings.Global.getInt(context.getContentResolver(), Settings.Global.BOOT_COUNT, 0);
+    }
+
+    private static SharedPreferences secure(Context context) {
+        return SettingsHelper.getEncryptedSharedPreferences(context);
+    }
+
+    private static SharedPreferences throttle(Context context) {
+        SharedPreferences target = secure(context);
+        SharedPreferences legacy = prefs(context);
+        if (legacy.contains(PREF_FAILURES) || legacy.contains(PREF_BACKOFF_UNTIL)) {
+            if (!target.edit().putInt(PREF_FAILURES, Math.max(target.getInt(PREF_FAILURES, 0), legacy.getInt(PREF_FAILURES, 0)))
+                .putLong(PREF_BACKOFF_UNTIL, Math.max(target.getLong(PREF_BACKOFF_UNTIL, 0), legacy.getLong(PREF_BACKOFF_UNTIL, 0)))
+                .commit()) throw new IllegalStateException("Could not migrate PIN lockout");
+            clearLegacyFailures(context);
+        }
+        return target;
+    }
+
+    private static void clearLegacyFailures(Context context) {
+        prefs(context).edit().remove(PREF_FAILURES).remove(PREF_BACKOFF_UNTIL).apply();
+    }
+
     private static SharedPreferences prefs(Context context) {
-        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        return context.getSharedPreferences("shadow_prefs", Context.MODE_PRIVATE);
     }
 }

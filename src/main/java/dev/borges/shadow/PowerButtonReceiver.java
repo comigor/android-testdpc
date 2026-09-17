@@ -155,13 +155,15 @@ public class PowerButtonReceiver extends BroadcastReceiver {
         // Only count SCREEN_OFF events to avoid double-counting
         // Each power button press generates both SCREEN_OFF and SCREEN_ON events
         if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+            if (!TheftModeState.isTriggerEnabled(context)) {
+                return;
+            }
             Log.d(TAG, "Screen turned OFF - counting as power button press");
-            ProtectedApps.lock(context);
 
             SharedPreferences sharedPreferences = SettingsHelper.getEncryptedSharedPreferences(context);
-            int TIME_WINDOW = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY));
-            int NUMBER_OF_PRESSES = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY));
-            long DELAY_TO_START_MODE = Integer.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY)) * 1000L;
+            int TIME_WINDOW = SettingsHelper.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.PRESS_TIME_WINDOW_KEY), 2000);
+            int NUMBER_OF_PRESSES = SettingsHelper.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.POWER_BUTTON_PRESSES_KEY), 4);
+            long DELAY_TO_START_MODE = SettingsHelper.parseInt(SettingsHelper.getSetting(sharedPreferences, SettingsHelper.ACTIVATION_DELAY_KEY), 180) * 1000L;
 
             long currentTime = System.currentTimeMillis();
             long timeSinceLastPress = currentTime - lastPressTime;

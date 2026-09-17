@@ -61,6 +61,10 @@ public class PolicyManagementActivity extends DumpableActivity
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    if (!dev.borges.shadow.AdminSession.isAuthenticated()) {
+      finish();
+      return;
+    }
     setContentView(R.layout.activity_main);
     if (savedInstanceState == null) {
       getFragmentManager()
@@ -100,6 +104,10 @@ public class PolicyManagementActivity extends DumpableActivity
   @Override
   protected void onResume() {
     super.onResume();
+    if (!dev.borges.shadow.AdminSession.isAuthenticated()) {
+      finish();
+      return;
+    }
 
     String lockModeCommand = getIntent().getStringExtra(CMD_LOCK_TASK_MODE);
     if (lockModeCommand != null) {

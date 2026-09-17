@@ -3,7 +3,6 @@ package dev.borges.shadow;
 import android.Manifest;
 import android.app.admin.DevicePolicyManager;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -128,19 +127,13 @@ public class ProtectionStatusChecker {
             return new Status("Watch", State.INACTIVE, "Disabled");
         }
 
-        // Check if watch is currently connected
-        try {
-            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-            if (adapter != null && adapter.isEnabled()) {
-                BluetoothDevice device = adapter.getRemoteDevice(watchAddress);
-                // Note: We can't reliably check connection state without BLUETOOTH_CONNECT permission
-                // Just show configured status
-                return new Status("Watch", State.OK, watchName);
-            }
-        } catch (Exception e) {
-            // Ignore
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter == null || !adapter.isEnabled()) {
+            return new Status("Watch", State.WARNING, "Bluetooth off");
         }
-
+        if (BluetoothWatchReceiver.isDisconnectPending(context)) {
+            return new Status("Watch", State.WARNING, "Disconnected");
+        }
         return new Status("Watch", State.OK, watchName);
     }
 

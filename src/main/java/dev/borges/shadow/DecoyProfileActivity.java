@@ -1,5 +1,7 @@
 package dev.borges.shadow;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -190,11 +192,19 @@ public class DecoyProfileActivity extends SubSettingsActivity {
     }
 
     private void showReturnToOwnerHelp() {
+        String adbCommand = "adb shell \"dumpsys activity service " + getPackageName() +
+            "/com.afwsamples.testdpc.DeviceAdminService switch-user 0\"";
         new AlertDialog.Builder(this)
-            .setTitle("Cannot Return to Owner")
-            .setMessage("This app is not set as profile owner. Use ADB command to return:\n\n" +
-                "adb shell am switch-user 0")
-            .setPositiveButton("OK", null)
+            .setTitle("Cannot Switch Profiles")
+            .setMessage("This decoy profile was not set up correctly as profile owner.\n\n" +
+                "To return to the owner profile, use ADB:\n\n" + adbCommand + "\n\n" +
+                "Or go to owner profile and delete this decoy, then recreate it.")
+            .setPositiveButton("Copy ADB Command", (d, w) -> {
+                ClipboardManager clipboard = getSystemService(ClipboardManager.class);
+                clipboard.setPrimaryClip(ClipData.newPlainText("ADB Command", adbCommand));
+                Toast.makeText(this, "Command copied to clipboard", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("Cancel", null)
             .show();
     }
 }

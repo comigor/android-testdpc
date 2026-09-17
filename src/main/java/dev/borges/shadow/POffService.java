@@ -46,19 +46,34 @@ public class POffService extends AccessibilityService {
     private Handler autoKillHandler = new Handler(Looper.getMainLooper());
     private Map<String, Runnable> pendingKills = new HashMap<>();
 
+    private final SharedPreferences.OnSharedPreferenceChangeListener settingsListener =
+        (prefs, key) -> reloadSettings();
+    private boolean powerOffPreventionEnabled;
+    private String[] keywords;
+
     @Override
     public void onCreate() {
         super.onCreate();
         encryptedSharedPreferences = SettingsHelper.getEncryptedSharedPreferences(this);
-        reloadAutoKillSettings();
+        encryptedSharedPreferences.registerOnSharedPreferenceChangeListener(settingsListener);
+        getSharedPreferences("shadow_prefs", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(settingsListener);
+        reloadSettings();
     }
 
-    public void reloadAutoKillSettings() {
+    @Override
+    public void onDestroy() {
+        encryptedSharedPreferences.unregisterOnSharedPreferenceChangeListener(settingsListener);
+        getSharedPreferences("shadow_prefs", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(settingsListener);
+        super.onDestroy();
+    }
+
+    private void reloadSettings() {
+        powerOffPreventionEnabled = "true".equals(
+            SettingsHelper.getSetting(encryptedSharedPreferences, SettingsHelper.POWER_OFF_PREVENTION_ENABLED_KEY));
+        keywords = encryptedSharedPreferences.getString(SettingsHelper.DETECT_KEYWORDS_KEY, DEFAULT_KEYWORDS).split(",");
         autoKillEnabled = AutoKillAppsActivity.isAutoKillEnabled(this);
         appsToAutoKill = AutoKillAppsActivity.getAppsToAutoKill(this);
         autoKillDelaySeconds = AutoKillAppsActivity.getAutoKillDelay(this);
-        Log.d(TAG, "Auto-kill settings reloaded: enabled=" + autoKillEnabled +
-            ", apps=" + appsToAutoKill.size() + ", delay=" + autoKillDelaySeconds + "s");
     }
 
     @Override
@@ -80,7 +95,7 @@ public class POffService extends AccessibilityService {
                 return;
             }
 
-            if (SYSTEM_UI_PACKAGE.equals(packageName)) {
+            if (powerOffPreventionEnabled && SYSTEM_UI_PACKAGE.equals(packageName)) {
                 KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
                 boolean isScreenLocked = false;
                 if (keyguardManager != null) {
@@ -93,8 +108,6 @@ public class POffService extends AccessibilityService {
 
                     List<AccessibilityNodeInfo> nodeQueue = new ArrayList<>();
                     nodeQueue.add(parentNodeInfo);
-
-                    String[] keywords = encryptedSharedPreferences.getString(SettingsHelper.DETECT_KEYWORDS_KEY, DEFAULT_KEYWORDS).split(",");
 
                     while (!nodeQueue.isEmpty()) {
                         AccessibilityNodeInfo currentNode = nodeQueue.remove(0);
@@ -182,9 +195,6 @@ public class POffService extends AccessibilityService {
     );
 
     private void handleAutoKill(String currentPackage) {
-        // Reload settings periodically (every event for simplicity)
-        reloadAutoKillSettings();
-
         if (!autoKillEnabled || currentPackage == null) {
             return;
         }
@@ -245,7 +255,7 @@ public class POffService extends AccessibilityService {
 
             // 2. Unhide after 500ms so app is ready for next manual launch, unless it must stay hidden
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                if (ProtectedApps.isLocked(this, packageName)) {
+                if (ProtectedApps.mustStayHidden(this, packageName)) {
                     return;
                 }
                 try {

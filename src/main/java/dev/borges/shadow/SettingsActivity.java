@@ -39,6 +39,8 @@ import androidx.appcompat.widget.SwitchCompat;
 import androidx.biometric.BiometricManager;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.afwsamples.testdpc.DeviceAdminReceiver;
 import com.afwsamples.testdpc.PolicyManagementActivity;
@@ -48,6 +50,7 @@ import dev.borges.shadow.util.DevicePasswordHelper;
 import dev.borges.shadow.util.DownloadHelper;
 import dev.borges.shadow.util.PasswordHelper;
 import dev.borges.shadow.util.SettingsHelper;
+import dev.borges.shadow.util.ConfigBackup;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,6 +76,14 @@ public class SettingsActivity extends AuthenticatedActivity {
     private DownloadHelper downloadHelper;
     private android.os.Handler theftModeHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable theftModeUpdateRunnable;
+    private Uri pendingImport;
+    private final ActivityResultLauncher<String> exportConfig = registerForActivityResult(
+        new ActivityResultContracts.CreateDocument(ConfigBackup.MIME_TYPE), uri -> {
+            if (uri != null) writeExport(uri);
+        });
+    // The picker backgrounds the app, which locks the session; apply only after re-authentication.
+    private final ActivityResultLauncher<String[]> importConfig = registerForActivityResult(
+        new ActivityResultContracts.OpenDocument(), uri -> pendingImport = uri);
 
     @Override
     protected void onAuthenticatedCreate(Bundle savedInstanceState) {
@@ -115,8 +126,12 @@ public class SettingsActivity extends AuthenticatedActivity {
             // Keep decoy user running in background for faster switch
             DeviceAdminReceiver.startDecoyInBackground(this);
         }
-        // Start theft mode timer updates
         startTheftModeTimer();
+        if (pendingImport != null) {
+            Uri source = pendingImport;
+            pendingImport = null;
+            confirmImport(source);
+        }
     }
 
     @Override
@@ -152,6 +167,7 @@ public class SettingsActivity extends AuthenticatedActivity {
             updateAppSetting();
             updateAppSetting2();
             addTestDPCSetting();
+            addConfigBackupSettings();
         } else {
             addTitle("Decoy Profile");
             settingsContainer.addView(createClickableTextItem("Return to Owner",
@@ -509,6 +525,54 @@ public class SettingsActivity extends AuthenticatedActivity {
             }
         });
         settingsContainer.addView(textView);
+    }
+
+    private void addConfigBackupSettings() {
+        settingsContainer.addView(createClickableTextItem("Export configuration", () ->
+            exportConfig.launch("shadow-config-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmm", Locale.US)
+                .format(new java.util.Date()) + ".json")));
+        settingsContainer.addView(createClickableTextItem("Import configuration", () ->
+            importConfig.launch(new String[]{ConfigBackup.MIME_TYPE, "text/plain", "application/octet-stream"})));
+    }
+
+    private void writeExport(Uri target) {
+        try (java.io.OutputStream out = getContentResolver().openOutputStream(target, "wt")) {
+            out.write(ConfigBackup.export(this).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Toast.makeText(this, "Configuration exported", Toast.LENGTH_SHORT).show();
+        } catch (java.io.IOException | RuntimeException e) {
+            Log.e(TAG, "Export failed", e);
+            Toast.makeText(this, "Export failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void confirmImport(Uri source) {
+        String json;
+        try (java.io.InputStream in = getContentResolver().openInputStream(source)) {
+            json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException | RuntimeException e) {
+            Toast.makeText(this, "Could not read file: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Import configuration")
+            .setMessage("This replaces all settings and app lists with the file contents. "
+                + "Passwords and the Vault PIN are not affected.")
+            .setPositiveButton("Import", (d, w) -> {
+                try {
+                    ConfigBackup.Result result = ConfigBackup.importConfig(this, json);
+                    String message = result.applied + " settings imported";
+                    if (!result.warnings.isEmpty()) {
+                        message += "\n\n" + String.join("\n", result.warnings);
+                    }
+                    new AlertDialog.Builder(this).setMessage(message).setPositiveButton("OK", null).show();
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Import failed", e);
+                    Toast.makeText(this, "Import failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+                populateSettings();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     @Override

@@ -20,7 +20,6 @@ import android.annotation.TargetApi;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
-import android.app.admin.SecurityLog.SecurityEvent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -71,7 +70,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
   private static final String LOGS_DIR = "logs";
 
   private static final String FAILED_PASSWORD_LOG_FILE = "failed_pw_attempts_timestamps.log";
-  private static final String SECURITY_LOG_FILE = "security_log.log";
 
   private static final int CHANGE_PASSWORD_NOTIFICATION_ID = 101;
   private static final int PASSWORD_FAILED_NOTIFICATION_ID = 102;
@@ -130,29 +128,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
   @Override
   public void onSecurityLogsAvailable(Context context, Intent intent) {
     Log.i(TAG, "onSecurityLogsAvailable() called");
-
-    DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
-    ComponentName admin = getComponentName(context);
-
-    try {
-        List<SecurityEvent> logs = dpm.retrieveSecurityLogs(admin);
-        if (logs == null) {
-            return;
-        }
-        for (SecurityEvent event : logs) {
-            if (event.getTag() != android.app.admin.SecurityLog.TAG_KEYGUARD_DISMISS_AUTH_ATTEMPT) {
-                continue;
-            }
-            // Payload is Object[]{int result, int method}; result 0 means failure.
-            Object[] data = (Object[]) event.getData();
-            if (data.length > 0 && Integer.valueOf(0).equals(data[0])) {
-                executeDecoySwitch(context);
-                logSecurityEvent(context, event);
-            }
-        }
-    } catch (SecurityException | ClassCastException e) {
-        Log.e(TAG, "Error processing security logs", e);
-    }
   }
 
   @TargetApi(VERSION_CODES.O)
@@ -511,17 +486,6 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
 
     bw.close();
   }
-
-    private void logSecurityEvent(Context context, SecurityEvent event) {
-        File logFile = logFile(context, SECURITY_LOG_FILE);
-        try (FileOutputStream fos = new FileOutputStream(logFile, true);
-             BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(fos))) {
-            bw.write(event.toString());
-            bw.newLine();
-        } catch (IOException e) {
-            Log.e(TAG, "Unable to write to security log file", e);
-        }
-    }
 
     public static void startDecoyInBackground(Context context) {
         UserManager um = context.getSystemService(UserManager.class);

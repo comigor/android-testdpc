@@ -64,7 +64,7 @@ ext {
     // exactly 1 digiT
     versionMinor = 2
     // exactly 2 digits
-    versionBuild = 0
+    versionBuild = 1
 }
 
 android {

@@ -100,10 +100,11 @@ public class SettingsActivity extends AuthenticatedActivity {
         isDeviceOwner = isDeviceOwnerApp(this);
         if (isDeviceOwner && getSystemService(UserManager.class).isSystemUser()) {
             try {
-                devicePolicyManager.setSecurityLoggingEnabled(adminComponentName, true);
+                // Batched security logs replay old keyguard failures; onPasswordFailed is the live trigger.
+                devicePolicyManager.setSecurityLoggingEnabled(adminComponentName, false);
             } catch (SecurityException e) {
-                Log.e(TAG, "Failed to enable security logging - admin may be invalid", e);
-                isDeviceOwner = false; // Admin is broken, treat as non-device-owner
+                Log.e(TAG, "Device owner APIs rejected - admin may be invalid", e);
+                isDeviceOwner = false;
             }
         }
 

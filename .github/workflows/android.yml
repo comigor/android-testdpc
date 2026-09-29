@@ -1,0 +1,110 @@
+name: android
+
+on:
+  push:
+    branches:
+      - anti-theft
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/anti-theft'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Prepare signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/shadow.keystore"
+            echo "SHADOW_KEYSTORE_PATH=$RUNNER_TEMP/shadow.keystore" >> "$GITHUB_ENV"
+            echo "SHADOW_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "signing: release keystore from secrets"
+          else
+            echo "signing: secrets absent — falling back to debug signing"
+            # build.sh hard-requires SHADOW_* env vars; give it a throwaway
+            # debug keystore so the unsigned-secrets path still builds green.
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/debug.keystore" \
+              -alias androiddebugkey \
+              -storepass android -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "SHADOW_KEYSTORE_PATH=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+            echo "SHADOW_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_PASSWORD=android" >> "$GITHUB_ENV"
+          fi
+      - name: Build release APKs
+        run: ./build.sh
+      - name: Upload release APKs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-release-apks
+          path: release-output/*.apk
+
+  release:
+    permissions:
+      contents: write
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Prepare signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/shadow.keystore"
+            echo "SHADOW_KEYSTORE_PATH=$RUNNER_TEMP/shadow.keystore" >> "$GITHUB_ENV"
+            echo "SHADOW_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "signing: release keystore from secrets"
+          else
+            echo "signing: secrets absent — falling back to debug signing"
+            # build.sh hard-requires SHADOW_* env vars; give it a throwaway
+            # debug keystore so the unsigned-secrets path still builds green.
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/debug.keystore" \
+              -alias androiddebugkey \
+              -storepass android -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "SHADOW_KEYSTORE_PATH=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+            echo "SHADOW_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+            echo "SHADOW_KEY_PASSWORD=android" >> "$GITHUB_ENV"
+          fi
+      - name: Build release APKs
+        run: ./build.sh
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-output/*
+          generate_release_notes: true

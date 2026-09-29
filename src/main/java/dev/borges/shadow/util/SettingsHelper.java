@@ -65,7 +65,7 @@ public abstract class SettingsHelper {
             Map.entry(PRESS_TIME_WINDOW_KEY, "2000"),
             Map.entry(ACTIVATION_DELAY_KEY, "180"),
             Map.entry(DEACTIVATION_SEQUENCE_KEY, "up,up,down,down,right"),
-            Map.entry(APP_UPDATE_URL, "https://public.borges.dev/shadow/latest.apk"),
+            Map.entry(APP_UPDATE_URL, "https://github.com/comigor/android-testdpc/releases/latest"),
             Map.entry(FRP_ACCOUNT_IDS, ""),
             Map.entry(WATCH_DISCONNECT_ENABLED_KEY, "false"),
             Map.entry(WATCH_DEVICE_ADDRESS_KEY, ""),

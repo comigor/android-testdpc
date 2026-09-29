@@ -48,6 +48,7 @@ import com.afwsamples.testdpc.R;
 
 import dev.borges.shadow.util.DevicePasswordHelper;
 import dev.borges.shadow.util.DownloadHelper;
+import dev.borges.shadow.util.GitHubUpdateChecker;
 import dev.borges.shadow.util.PasswordHelper;
 import dev.borges.shadow.util.SettingsHelper;
 import dev.borges.shadow.util.ConfigBackup;
@@ -509,8 +510,7 @@ public class SettingsActivity extends AuthenticatedActivity {
     }
 
     private void updateAppSetting() {
-        String url = SettingsHelper.getSetting(sharedPreferences, SettingsHelper.APP_UPDATE_URL);
-        View textView = createClickableTextItem("Update app", () -> downloadHelper.downloadAndInstallApk(this, url));
+        View textView = createClickableTextItem("Update app", () -> new GitHubUpdateChecker(this, downloadHelper).checkNow());
         settingsContainer.addView(textView);
     }
 

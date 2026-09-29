@@ -4,8 +4,11 @@ package dev.borges.shadow;
 
 import android.accessibilityservice.AccessibilityService;
 import android.annotation.TargetApi;
+import android.app.AppOpsManager;
 import android.app.KeyguardManager;
 import android.app.admin.DevicePolicyManager;
+import android.app.usage.UsageEvents;
+import android.app.usage.UsageStatsManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -13,6 +16,7 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
@@ -45,6 +49,11 @@ public class POffService extends AccessibilityService {
     private int autoKillDelaySeconds = 60;
     private Handler autoKillHandler = new Handler(Looper.getMainLooper());
     private Map<String, Runnable> pendingKills = new HashMap<>();
+    private Map<String, Long> lastInteractionTimes = new HashMap<>();
+
+    // Ignore window activity in the first ms after scheduling (app exit animations
+    // can emit a final content event for the app that was just left).
+    private static final long KILL_INTERACTION_SETTLE_MS = 2000;
 
     private final SharedPreferences.OnSharedPreferenceChangeListener settingsListener =
         (prefs, key) -> reloadSettings();
@@ -81,12 +90,17 @@ public class POffService extends AccessibilityService {
         // Check for pending theft mode activation on every accessibility event
         PowerButtonReceiver.checkPendingTheftMode(this);
 
+        // Auto-kill: remember recent window activity per package (used by the
+        // fire-time guard to detect an app that came back to the foreground).
+        recordAutoKillInteraction(event);
+
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
 //            Log.d(TAG, "Window state changed: " + event.getPackageName() + ", " + event.getClassName());
-            String packageName = event.getPackageName() != null ? event.getPackageName().toString() : null;
 
             // Auto-kill: Track foreground app changes
-            handleAutoKill(packageName);
+            handleAutoKill(event);
+
+            String packageName = event.getPackageName() != null ? event.getPackageName().toString() : null;
 
             // bugfix: if on TheftModeActivity, press back twice
             if (getPackageName().equals(packageName) && event.getClassName() != null && event.getClassName().equals(TheftModeActivity.class.getName())) {
@@ -191,27 +205,63 @@ public class POffService extends AccessibilityService {
         "com.google.android.inputmethod.latin",  // Gboard
         "com.samsung.android.honeyboard",        // Samsung keyboard
         "com.android.inputmethod.latin",         // AOSP keyboard
-        "com.swiftkey.swiftkey"                  // SwiftKey
+        "com.swiftkey.swiftkey",                 // SwiftKey
+        "com.google.android.packageinstaller",   // install/permission dialogs
+        "com.google.android.permissioncontroller",
+        "com.android.packageinstaller",
+        "com.android.permissioncontroller",
+        "com.google.android.gms",                // Play services / sign-in overlays
+        "com.android.chrome",                    // Chrome Custom Tabs
+        "org.chromium.chrome"
     );
 
-    private void handleAutoKill(String currentPackage) {
-        if (!autoKillEnabled || currentPackage == null) {
+    private void recordAutoKillInteraction(AccessibilityEvent event) {
+        if (!autoKillEnabled) {
             return;
         }
+        int type = event.getEventType();
+        if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && type != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                && type != AccessibilityEvent.TYPE_VIEW_CLICKED
+                && type != AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            return;
+        }
+        CharSequence pkgChars = event.getPackageName();
+        if (pkgChars == null) {
+            return;
+        }
+        String packageName = pkgChars.toString();
+        if (IGNORED_PACKAGES.contains(packageName) || packageName.contains(".inputmethod.")) {
+            return;
+        }
+        lastInteractionTimes.put(packageName, System.currentTimeMillis());
+    }
+
+    private void handleAutoKill(AccessibilityEvent event) {
+        if (!autoKillEnabled || event.getPackageName() == null) {
+            return;
+        }
+        String currentPackage = event.getPackageName().toString();
 
         // Ignore transient system packages (keyboards, system UI, etc.)
         if (IGNORED_PACKAGES.contains(currentPackage) || currentPackage.contains(".inputmethod.")) {
             return;
         }
 
+        // Only full-screen windows count as real app switches. Dialogs, permission
+        // prompts, pickers, share sheets and chat bubbles are not full-screen, so
+        // they must not mark the previous app as "left" nor clobber foreground state.
+        if (!event.isFullScreen()) {
+            return;
+        }
+
         if (!currentPackage.equals(lastForegroundPackage)) {
             // Cancel pending kill if user returned to the app
-            if (pendingKills.containsKey(currentPackage)) {
-                autoKillHandler.removeCallbacks(pendingKills.get(currentPackage));
-                pendingKills.remove(currentPackage);
-            }
+            cancelPendingKill(currentPackage, "user returned to app");
 
-            // Schedule clean purge for previous app if in auto-kill list
+            // Schedule clean purge for previous app if in auto-kill list. Reaching
+            // here means a real full-screen window from a different package took the
+            // foreground, so the previous app is genuinely backgrounded now.
             if (lastForegroundPackage != null && appsToAutoKill.contains(lastForegroundPackage)) {
                 scheduleCleanPurge(lastForegroundPackage);
             }
@@ -220,15 +270,40 @@ public class POffService extends AccessibilityService {
         }
     }
 
+    private void cancelPendingKill(String packageName, String reason) {
+        Runnable pending = pendingKills.remove(packageName);
+        if (pending != null) {
+            autoKillHandler.removeCallbacks(pending);
+            Log.d(TAG, "Auto-kill cancelled for " + packageName + " (" + reason + ")");
+        }
+    }
+
     private void scheduleCleanPurge(String packageName) {
         // Cancel any existing pending purge for this package
-        if (pendingKills.containsKey(packageName)) {
-            autoKillHandler.removeCallbacks(pendingKills.get(packageName));
+        Runnable existing = pendingKills.get(packageName);
+        if (existing != null) {
+            autoKillHandler.removeCallbacks(existing);
         }
 
+        final long scheduledAt = System.currentTimeMillis();
         Runnable purgeRunnable = () -> {
-            cleanPurgeApp(packageName);
-            pendingKills.remove(packageName);
+            try {
+                // Kill-time guard: the user may have returned to the app while the
+                // purge was pending (e.g. an overlay closed without firing a new
+                // window event for it). Re-verify before killing.
+                String check = foregroundCheckDescription(packageName, scheduledAt);
+                if (check != null) {
+                    Log.d(TAG, "Auto-kill aborted for " + packageName + " (still foreground: " + check + ")");
+                } else {
+                    Log.d(TAG, "Auto-kill firing for " + packageName + " (foreground checks passed:"
+                            + " trackedFg=" + lastForegroundPackage
+                            + ", lastInteraction=" + lastInteractionTimes.get(packageName)
+                            + ", scheduledAt=" + scheduledAt + ")");
+                    cleanPurgeApp(packageName);
+                }
+            } finally {
+                pendingKills.remove(packageName);
+            }
         };
 
         pendingKills.put(packageName, purgeRunnable);
@@ -237,6 +312,63 @@ public class POffService extends AccessibilityService {
             purgeRunnable.run();
         } else {
             autoKillHandler.postDelayed(purgeRunnable, autoKillDelaySeconds * 1000L);
+        }
+    }
+
+    // Returns a non-null description of why the app is considered foreground, or
+    // null if every check agrees the app is backgrounded and may be killed.
+    private String foregroundCheckDescription(String packageName, long scheduledAt) {
+        // 1. Our own full-screen window tracking still has this app on top.
+        if (packageName.equals(lastForegroundPackage)) {
+            return "tracked foreground package";
+        }
+
+        // 2. The app emitted window events after the kill was scheduled (past the
+        // settle window that covers exit-animation noise), i.e. it is visible and
+        // in use again.
+        Long lastInteraction = lastInteractionTimes.get(packageName);
+        if (lastInteraction != null && lastInteraction > scheduledAt + KILL_INTERACTION_SETTLE_MS) {
+            return "window interaction at " + lastInteraction + " after scheduling";
+        }
+
+        // 3. Usage stats (only if the app-op is granted): the most recently
+        // resumed app is still this one.
+        if (isLastResumedByUsageStats(packageName, scheduledAt)) {
+            return "usage stats last-resumed package";
+        }
+
+        return null;
+    }
+
+    private boolean isLastResumedByUsageStats(String packageName, long sinceMillis) {
+        try {
+            AppOpsManager appOps = (AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
+            if (appOps == null) {
+                return false;
+            }
+            int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    Process.myUid(), getPackageName());
+            if (mode != AppOpsManager.MODE_ALLOWED) {
+                return false;
+            }
+            UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) {
+                return false;
+            }
+            long now = System.currentTimeMillis();
+            UsageEvents events = usm.queryEvents(sinceMillis, now);
+            UsageEvents.Event usageEvent = new UsageEvents.Event();
+            String lastResumedPackage = null;
+            while (events.hasNextEvent()) {
+                events.getNextEvent(usageEvent);
+                if (usageEvent.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                    lastResumedPackage = usageEvent.getPackageName();
+                }
+            }
+            return packageName.equals(lastResumedPackage);
+        } catch (Exception e) {
+            Log.e(TAG, "Usage stats foreground check failed", e);
+            return false;
         }
     }
 
